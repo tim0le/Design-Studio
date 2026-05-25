@@ -73,6 +73,11 @@ const Viewer = (() => {
     }
   });
 
+  // Reload current slide when an agent session finishes editing the deck
+  window.addEventListener('fgs:agent-complete', () => {
+    refreshCurrent();
+  });
+
   async function handleDragPosition(data) {
     if (!currentDeckId) return;
     // Fire-and-forget: save position to markdown, no re-render (iframe already shows the drag result)

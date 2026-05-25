@@ -64,14 +64,14 @@
     <!-- Right: Edit Panel -->
     <aside class="edit-panel">
       <div class="edit-panel-header">
-        <span class="edit-panel-title">Edit</span>
+        <span class="edit-panel-title">Panel</span>
         <div class="mode-toggle">
-          <button class="mode-btn active" data-mode="edit" title="Edit element text">Edit</button>
-          <button class="mode-btn" data-mode="generate" title="Generate new visual with Claude">Generate</button>
+          <button class="mode-btn active" data-mode="edit" title="Quick edit (legacy)">Edit</button>
+          <button class="mode-btn" data-mode="agent" title="Claude Code agent chat">Agent</button>
         </div>
       </div>
 
-      <!-- Selection display -->
+      <!-- Selection display (shared) -->
       <div class="selection-box">
         <div class="selection-empty" id="selection-empty">
           <div class="selection-empty-icon">⊹</div>
@@ -83,8 +83,8 @@
         </div>
       </div>
 
-      <!-- Instruction + Voice -->
-      <div class="instruction-area">
+      <!-- LEGACY: Quick-edit instruction + Voice -->
+      <div class="instruction-area" id="edit-mode-panel">
         <div class="instruction-inner">
           <div class="instruction-label" id="instruction-label">Instruction</div>
           <textarea
@@ -103,6 +103,32 @@
           <div class="history-header">History</div>
           <div class="history-list" id="history-list">
             <div style="font-size:10.5px;color:var(--muted);padding:4px 6px;text-align:center;">No edits yet.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- AGENT: chat transcript + composer -->
+      <div class="agent-area" id="agent-mode-panel" style="display:none;">
+        <div class="agent-transcript" id="agent-transcript">
+          <div class="agent-empty" id="agent-empty">
+            <div class="agent-empty-icon">◆</div>
+            <div class="agent-empty-text">
+              Agent chat<br>
+              <span style="font-size:9px;opacity:0.7;">Select an element, then describe the change. Claude will edit the deck and stream its reasoning here.</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="agent-composer">
+          <textarea
+            class="instruction-input agent-input"
+            id="agent-input"
+            placeholder="e.g. Make this English · Rewrite as a single sentence · Add a citation"
+          ></textarea>
+          <div class="instruction-actions">
+            <button class="btn-voice" id="agent-btn-voice" title="Voice input">🎤</button>
+            <button class="btn-send" id="agent-btn-send" disabled>SEND →</button>
+            <button class="btn-cancel" id="agent-btn-cancel" style="display:none;" title="Cancel agent session">⏹ Cancel</button>
           </div>
         </div>
       </div>
@@ -148,6 +174,7 @@
 
 <script src="viewer.js"></script>
 <script src="chat.js"></script>
+<script src="agent.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
