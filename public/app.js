@@ -139,7 +139,12 @@ window.fetch = (url, opts = {}) => {
       showToast('No slide selected', true);
       return;
     }
-    showToast(`Exporting slide ${slideIndex + 1} as ${format.toUpperCase()}…`);
+    const slowFormat = format === 'pptx';
+    showToast(
+      slowFormat
+        ? `Exporting editable PPTX for slide ${slideIndex + 1}… (~60s via LibreOffice)`
+        : `Exporting slide ${slideIndex + 1} as ${format.toUpperCase()}…`
+    );
     try {
       const res = await fetch('/api/export/slide', {
         method: 'POST',
