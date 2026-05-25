@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Furgoson Studio</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <!-- Top bar -->
+  <header class="topbar">
+    <div class="topbar-brand">
+      <div class="topbar-brand-mark">◆</div>
+      <div class="topbar-brand-name">Furgoson Studio</div>
+    </div>
+    <div class="topbar-divider"></div>
+    <div class="topbar-deck-name" id="topbar-deck-name">Select a deck to begin</div>
+    <div class="topbar-actions">
+      <button class="btn btn-key" id="btn-settings" title="Set API key">⚙ API Key</button>
+      <button class="btn" id="btn-export-pdf" disabled>↓ PDF</button>
+      <button class="btn" id="btn-export-pptx" disabled>↓ PPTX</button>
+    </div>
+  </header>
+
+  <div class="panels">
+
+    <!-- Left: Deck List -->
+    <aside class="deck-list">
+      <div class="deck-list-header">
+        <span class="deck-list-title">Decks</span>
+        <button class="btn-icon" id="btn-upload" title="Upload .md deck">+</button>
+      </div>
+      <div class="deck-items" id="deck-items">
+        <div style="padding:20px 10px; font-size:11px; color:var(--muted); text-align:center;">Loading…</div>
+      </div>
+      <input type="file" id="file-upload" accept=".md" style="display:none">
+    </aside>
+
+    <!-- Center: Viewer -->
+    <main class="viewer">
+      <div class="slide-nav">
+        <button class="nav-btn" id="btn-prev" disabled>←</button>
+        <span class="nav-page" id="nav-page">—</span>
+        <button class="nav-btn" id="btn-next" disabled>→</button>
+      </div>
+      <div class="slide-stage">
+        <div class="slide-wrapper" id="slide-wrapper">
+          <div class="slide-placeholder" id="slide-placeholder">
+            <div class="slide-placeholder-icon">▤</div>
+            <div class="slide-placeholder-text">Select a deck from the left panel<br>to start editing</div>
+          </div>
+          <iframe id="slide-iframe" style="display:none;" sandbox="allow-scripts allow-same-origin"></iframe>
+          <div class="slide-loading" id="slide-loading">RENDERING…</div>
+        </div>
+      </div>
+      <div class="slide-hint">
+        <div class="slide-hint-dot"></div>
+        Click any element on the slide to select it for editing
+      </div>
+    </main>
+
+    <!-- Right: Edit Panel -->
+    <aside class="edit-panel">
+      <div class="edit-panel-header">
+        <span class="edit-panel-title">Edit</span>
+        <div class="mode-toggle">
+          <button class="mode-btn active" data-mode="edit" title="Edit element text">Edit</button>
+          <button class="mode-btn" data-mode="generate" title="Generate new visual with Claude">Generate</button>
+        </div>
+      </div>
+
+      <!-- Selection display -->
+      <div class="selection-box">
+        <div class="selection-empty" id="selection-empty">
+          <div class="selection-empty-icon">⊹</div>
+          <div class="selection-empty-text">Nothing selected<br><span style="font-size:9px;opacity:0.7;">Click an element on the slide</span></div>
+        </div>
+        <div class="selection-filled" id="selection-filled">
+          <div class="selection-tag" id="selection-tag">element</div>
+          <div class="selection-text" id="selection-text"></div>
+        </div>
+      </div>
+
+      <!-- Instruction + Voice -->
+      <div class="instruction-area">
+        <div class="instruction-inner">
+          <div class="instruction-label" id="instruction-label">Instruction</div>
+          <textarea
+            class="instruction-input"
+            id="instruction-input"
+            placeholder="e.g. Make this more concise · Translate to German"
+          ></textarea>
+          <div class="instruction-actions">
+            <button class="btn-voice" id="btn-voice" title="Voice input">🎤</button>
+            <button class="btn-send" id="btn-send" disabled>APPLY →</button>
+          </div>
+        </div>
+
+        <!-- History -->
+        <div class="history-section">
+          <div class="history-header">History</div>
+          <div class="history-list" id="history-list">
+            <div style="font-size:10.5px;color:var(--muted);padding:4px 6px;text-align:center;">No edits yet.</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- API Key dialog -->
+<div class="upload-dialog" id="settings-dialog" style="display:none;">
+  <div class="upload-dialog-inner">
+    <div class="upload-dialog-title">Anthropic API Key</div>
+    <div style="font-size:11px;color:var(--body);line-height:1.6;margin-bottom:4px;">Paste your key — stored locally in your browser, never sent anywhere except the Anthropic API.</div>
+    <input type="password" class="api-key-input" id="api-key-input" placeholder="sk-ant-api03-..." autocomplete="off" spellcheck="false">
+    <div class="api-key-status" id="api-key-status"></div>
+    <div class="upload-dialog-actions">
+      <button class="btn" id="settings-cancel">Cancel</button>
+      <button class="btn btn-primary" id="settings-save">Save key</button>
+    </div>
+  </div>
+</div>
+
+<!-- Upload lang picker -->
+<div class="upload-dialog" id="upload-dialog" style="display:none;">
+  <div class="upload-dialog-inner">
+    <div class="upload-dialog-title">Upload Deck</div>
+    <div class="upload-dialog-file" id="upload-dialog-file"></div>
+    <div class="upload-dialog-row">
+      <label class="upload-dialog-label">Language</label>
+      <select class="upload-dialog-select" id="upload-lang">
+        <option value="en">English (en)</option>
+        <option value="de">Deutsch (de)</option>
+      </select>
+    </div>
+    <div class="upload-dialog-actions">
+      <button class="btn" id="upload-cancel">Cancel</button>
+      <button class="btn btn-primary" id="upload-confirm">Upload</button>
+    </div>
+  </div>
+</div>
+
+<script src="viewer.js"></script>
+<script src="chat.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

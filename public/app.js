@@ -1,0 +1,237 @@
+/* ── API Key management (global) ── */
+const ApiKey = (() => {
+  const KEY = 'fgs_api_key';
+  let _key = localStorage.getItem(KEY) || '';
+
+  function get() { return _key; }
+  function set(k) { _key = k.trim(); if (_key) localStorage.setItem(KEY, _key); else localStorage.removeItem(KEY); }
+  function headers() { return _key ? { 'X-API-Key': _key } : {}; }
+  function isSet() { return !!_key; }
+  return { get, set, headers, isSet };
+})();
+
+// Monkey-patch fetch to auto-inject API key header
+const _origFetch = window.fetch.bind(window);
+window.fetch = (url, opts = {}) => {
+  if (typeof url === 'string' && url.startsWith('/api/') && ApiKey.isSet()) {
+    opts.headers = Object.assign({}, opts.headers || {}, ApiKey.headers());
+  }
+  return _origFetch(url, opts);
+};
+
+/* ── App: orchestrator ── */
+(async () => {
+  const deckItemsEl = document.getElementById('deck-items');
+  const topbarName = document.getElementById('topbar-deck-name');
+  const btnExportPdf = document.getElementById('btn-export-pdf');
+  const btnExportPptx = document.getElementById('btn-export-pptx');
+  const btnSettings = document.getElementById('btn-settings');
+  const settingsDialog = document.getElementById('settings-dialog');
+  const apiKeyInput = document.getElementById('api-key-input');
+  const apiKeyStatus = document.getElementById('api-key-status');
+  const settingsCancel = document.getElementById('settings-cancel');
+  const settingsSave = document.getElementById('settings-save');
+  const btnUpload = document.getElementById('btn-upload');
+  const fileUpload = document.getElementById('file-upload');
+  const uploadDialog = document.getElementById('upload-dialog');
+  const uploadDialogFile = document.getElementById('upload-dialog-file');
+  const uploadLang = document.getElementById('upload-lang');
+  const uploadCancel = document.getElementById('upload-cancel');
+  const uploadConfirm = document.getElementById('upload-confirm');
+
+  let currentDeckId = null;
+  let decks = [];
+  let pendingUpload = null; // { name, content }
+
+  // ── Load deck list ──
+  async function loadDecks() {
+    try {
+      const res = await fetch('/api/decks');
+      decks = await res.json();
+      renderDeckList(decks);
+    } catch (e) {
+      deckItemsEl.innerHTML = `<div style="padding:14px 10px;font-size:11px;color:var(--muted);">Could not load decks.<br>${e.message}</div>`;
+    }
+  }
+
+  function renderDeckList(decks) {
+    deckItemsEl.innerHTML = '';
+    if (!decks.length) {
+      deckItemsEl.innerHTML = `<div style="padding:14px 10px;font-size:11px;color:var(--muted);">No decks found.</div>`;
+      return;
+    }
+    decks.forEach(deck => {
+      const item = document.createElement('div');
+      item.className = 'deck-item';
+      item.dataset.id = deck.id;
+      item.innerHTML = `
+        <div class="deck-item-icon">${deck.lang.toUpperCase()}</div>
+        <div class="deck-item-info">
+          <div class="deck-item-name">${escHtml(deck.name)}</div>
+          <div class="deck-item-meta">${deck.slideCount} slide${deck.slideCount !== 1 ? 's' : ''}</div>
+        </div>
+      `;
+      item.addEventListener('click', () => selectDeck(deck.id, deck.name));
+      deckItemsEl.appendChild(item);
+    });
+    // Re-mark active
+    if (currentDeckId) {
+      document.querySelectorAll('.deck-item').forEach(el =>
+        el.classList.toggle('active', el.dataset.id === currentDeckId));
+    }
+  }
+
+  async function selectDeck(id, name) {
+    currentDeckId = id;
+    document.querySelectorAll('.deck-item').forEach(el => el.classList.toggle('active', el.dataset.id === id));
+    topbarName.textContent = name;
+    btnExportPdf.disabled = false;
+    btnExportPptx.disabled = false;
+    Chat.reset();
+    await Viewer.loadDeck(id);
+  }
+
+  // ── Export ──
+  async function exportDeck(format) {
+    if (!currentDeckId) return;
+    const btn = format === 'pdf' ? btnExportPdf : btnExportPptx;
+    btn.disabled = true;
+    btn.textContent = '…';
+    try {
+      const res = await fetch('/api/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deckId: currentDeckId, format })
+      });
+      if (!res.ok) {
+        const d = await res.json();
+        showToast(d.error || 'Export failed', true);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = currentDeckId.replace(/\//g, '_') + '.' + format;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`✓ ${format.toUpperCase()} downloaded`);
+    } catch (e) {
+      showToast(e.message, true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = format === 'pdf' ? '↓ PDF' : '↓ PPTX';
+    }
+  }
+
+  btnExportPdf.addEventListener('click', () => exportDeck('pdf'));
+  btnExportPptx.addEventListener('click', () => exportDeck('pptx'));
+
+  // ── Settings / API Key ──
+  function updateSettingsBtn() {
+    btnSettings.classList.toggle('has-key', ApiKey.isSet());
+    btnSettings.title = ApiKey.isSet() ? '⚙ API Key set — click to change' : '⚙ Set API key to enable AI edits';
+  }
+  updateSettingsBtn();
+
+  btnSettings.addEventListener('click', () => {
+    apiKeyInput.value = ApiKey.get();
+    apiKeyStatus.textContent = ApiKey.isSet() ? '✓ Key saved' : '';
+    apiKeyStatus.className = 'api-key-status' + (ApiKey.isSet() ? ' ok' : '');
+    settingsDialog.style.display = 'flex';
+    setTimeout(() => apiKeyInput.focus(), 50);
+  });
+
+  settingsCancel.addEventListener('click', () => { settingsDialog.style.display = 'none'; });
+
+  settingsSave.addEventListener('click', () => {
+    const k = apiKeyInput.value.trim();
+    if (k && !k.startsWith('sk-ant-')) {
+      apiKeyStatus.textContent = 'Key should start with sk-ant-';
+      apiKeyStatus.className = 'api-key-status err';
+      return;
+    }
+    ApiKey.set(k);
+    apiKeyStatus.textContent = k ? '✓ Key saved' : 'Key removed';
+    apiKeyStatus.className = 'api-key-status ok';
+    updateSettingsBtn();
+    setTimeout(() => { settingsDialog.style.display = 'none'; }, 600);
+  });
+
+  apiKeyInput.addEventListener('keydown', e => { if (e.key === 'Enter') settingsSave.click(); });
+  settingsDialog.addEventListener('click', e => { if (e.target === settingsDialog) settingsDialog.style.display = 'none'; });
+
+  // ── Upload ──
+  btnUpload.addEventListener('click', () => fileUpload.click());
+
+  fileUpload.addEventListener('change', () => {
+    const file = fileUpload.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = e => {
+      pendingUpload = { name: file.name, content: e.target.result };
+      uploadDialogFile.textContent = file.name;
+      // Auto-detect language from filename
+      if (file.name.match(/\b(de|deutsch|german)\b/i)) uploadLang.value = 'de';
+      else uploadLang.value = 'en';
+      uploadDialog.style.display = 'flex';
+    };
+    reader.readAsText(file);
+    fileUpload.value = ''; // reset so same file can be re-uploaded
+  });
+
+  uploadCancel.addEventListener('click', () => {
+    uploadDialog.style.display = 'none';
+    pendingUpload = null;
+  });
+
+  uploadConfirm.addEventListener('click', async () => {
+    if (!pendingUpload) return;
+    uploadConfirm.disabled = true;
+    uploadConfirm.textContent = 'Uploading…';
+    try {
+      const res = await fetch('/api/decks/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: pendingUpload.name,
+          content: pendingUpload.content,
+          lang: uploadLang.value
+        })
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Upload failed', true); return; }
+      uploadDialog.style.display = 'none';
+      pendingUpload = null;
+      await loadDecks();
+      showToast(`✓ Deck "${data.deck.name}" uploaded`);
+      // Auto-select the uploaded deck
+      if (data.deck) selectDeck(data.deckId, data.deck.name || data.deckId);
+    } catch (e) {
+      showToast(e.message, true);
+    } finally {
+      uploadConfirm.disabled = false;
+      uploadConfirm.textContent = 'Upload';
+    }
+  });
+
+  // Close dialog on backdrop click
+  uploadDialog.addEventListener('click', e => {
+    if (e.target === uploadDialog) { uploadDialog.style.display = 'none'; pendingUpload = null; }
+  });
+
+  function escHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  await loadDecks();
+})();
+
+// ── Toast (global) ──
+function showToast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.toggle('error', isError);
+  t.classList.add('visible');
+  setTimeout(() => t.classList.remove('visible'), 3000);
+}
