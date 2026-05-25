@@ -119,7 +119,9 @@ window.fetch = (url, opts = {}) => {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = currentDeckId.replace(/\//g, '_') + '.' + format;
+      // Both pptx and pptx-editable produce .pptx files.
+      const fileExt = format === 'pptx-editable' ? 'pptx' : format;
+      a.download = currentDeckId.replace(/\//g, '_') + '.' + fileExt;
       a.click();
       URL.revokeObjectURL(url);
       showToast(`✓ ${format.toUpperCase()} downloaded`);
@@ -132,7 +134,29 @@ window.fetch = (url, opts = {}) => {
   }
 
   btnExportPdf.addEventListener('click', () => exportDeck('pdf'));
-  btnExportPptx.addEventListener('click', () => exportDeck('pptx'));
+
+  // Deck-level PPTX dropdown — choose between rasterized (default, exact) and
+  // editable (LibreOffice, may scramble complex layouts).
+  const deckExportPopup = document.getElementById('deck-export-popup');
+  btnExportPptx.addEventListener('click', e => {
+    if (!deckExportPopup) { exportDeck('pptx'); return; }
+    e.stopPropagation();
+    const open = deckExportPopup.style.display !== 'none';
+    deckExportPopup.style.display = open ? 'none' : 'flex';
+  });
+  if (deckExportPopup) {
+    deckExportPopup.querySelectorAll('[data-deck-format]').forEach(b => {
+      b.addEventListener('click', () => {
+        deckExportPopup.style.display = 'none';
+        exportDeck(b.dataset.deckFormat);
+      });
+    });
+    document.addEventListener('click', e => {
+      if (!deckExportPopup.contains(e.target) && e.target !== btnExportPptx) {
+        deckExportPopup.style.display = 'none';
+      }
+    });
+  }
 
   // ── Single-slide export ──
   async function exportCurrentSlide(format) {
@@ -142,7 +166,7 @@ window.fetch = (url, opts = {}) => {
       showToast('No slide selected', true);
       return;
     }
-    const slowFormat = format === 'pptx';
+    const slowFormat = format === 'pptx-editable';
     showToast(
       slowFormat
         ? `Exporting editable PPTX for slide ${slideIndex + 1}… (~60s via LibreOffice)`
@@ -165,7 +189,8 @@ window.fetch = (url, opts = {}) => {
       a.href = url;
       const safeId = currentDeckId.replace(/\//g, '_');
       const pad = String(slideIndex + 1).padStart(2, '0');
-      a.download = `${safeId}_slide${pad}.${format === 'jpeg' ? 'jpg' : format}`;
+      const ext = format === 'pptx-editable' ? 'pptx' : format === 'jpeg' ? 'jpg' : format;
+      a.download = `${safeId}_slide${pad}.${ext}`;
       a.click();
       URL.revokeObjectURL(url);
       showToast(`✓ Slide ${slideIndex + 1} ${format.toUpperCase()} downloaded`);

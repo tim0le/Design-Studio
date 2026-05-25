@@ -20,7 +20,13 @@
     <div class="topbar-actions">
       <button class="btn btn-key" id="btn-settings" title="Set API key">⚙ API Key</button>
       <button class="btn" id="btn-export-pdf" disabled>↓ PDF</button>
-      <button class="btn" id="btn-export-pptx" disabled>↓ PPTX</button>
+      <div class="deck-export-menu">
+        <button class="btn" id="btn-export-pptx" disabled title="Click for PPTX options">↓ PPTX ▾</button>
+        <div class="deck-export-popup" id="deck-export-popup" style="display:none;">
+          <button class="slide-export-option" data-deck-format="pptx">PPTX (exact, recommended)</button>
+          <button class="slide-export-option" data-deck-format="pptx-editable">PPTX (editable, beta)</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -56,7 +62,8 @@
           <button class="nav-btn" id="btn-slide-export" disabled title="Export this slide">↓ Slide</button>
           <div class="slide-export-popup" id="slide-export-popup" style="display:none;">
             <button class="slide-export-option" data-format="pdf">PDF</button>
-            <button class="slide-export-option" data-format="pptx">PPTX (editable)</button>
+            <button class="slide-export-option" data-format="pptx">PPTX (exact)</button>
+            <button class="slide-export-option" data-format="pptx-editable">PPTX (editable, beta)</button>
             <button class="slide-export-option" data-format="png">PNG</button>
             <button class="slide-export-option" data-format="jpg">JPG</button>
             <button class="slide-export-option" data-format="html">HTML</button>
