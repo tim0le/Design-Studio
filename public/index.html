@@ -44,11 +44,12 @@
         <button class="nav-btn" id="btn-prev" disabled>←</button>
         <span class="nav-page" id="nav-page">—</span>
         <button class="nav-btn" id="btn-next" disabled>→</button>
+        <button class="nav-btn" id="btn-slide-source" disabled title="View / edit raw slide markdown">&lt;/&gt; Source</button>
         <div class="slide-export-menu">
           <button class="nav-btn" id="btn-slide-export" disabled title="Export this slide">↓ Slide</button>
           <div class="slide-export-popup" id="slide-export-popup" style="display:none;">
             <button class="slide-export-option" data-format="pdf">PDF</button>
-            <button class="slide-export-option" data-format="pptx">PPTX</button>
+            <button class="slide-export-option" data-format="pptx">PPTX (editable)</button>
             <button class="slide-export-option" data-format="png">PNG</button>
             <button class="slide-export-option" data-format="jpg">JPG</button>
             <button class="slide-export-option" data-format="html">HTML</button>
@@ -159,6 +160,19 @@
     <div class="upload-dialog-actions">
       <button class="btn" id="settings-cancel">Cancel</button>
       <button class="btn btn-primary" id="settings-save">Save key</button>
+    </div>
+  </div>
+</div>
+
+<!-- Raw slide-source drawer -->
+<div class="upload-dialog" id="source-dialog" style="display:none;">
+  <div class="upload-dialog-inner source-drawer">
+    <div class="upload-dialog-title" id="source-dialog-title">Slide source</div>
+    <textarea class="source-textarea" id="source-textarea" spellcheck="false" autocomplete="off"></textarea>
+    <div class="source-hint" id="source-hint">Edit the raw Marp markdown for this slide. The iframe refreshes automatically on save.</div>
+    <div class="upload-dialog-actions">
+      <button class="btn" id="source-cancel">Cancel</button>
+      <button class="btn btn-primary" id="source-save">Save</button>
     </div>
   </div>
 </div>

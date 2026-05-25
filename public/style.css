@@ -1189,3 +1189,41 @@ html, body {
   background: rgba(184,90,62,0.12);
   color: var(--white, #f5f3f0);
 }
+
+/* ── Raw slide-source drawer ── */
+.source-drawer {
+  width: 760px;
+  max-width: 90vw;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.source-textarea {
+  flex: 1;
+  min-height: 380px;
+  width: 100%;
+  background: var(--bg, #100e0c);
+  border: 1px solid var(--rule, #2c2820);
+  border-radius: 4px;
+  color: var(--white, #f5f3f0);
+  font-family: 'Consolas', 'Cascadia Code', 'Menlo', monospace;
+  font-size: 12.5px;
+  line-height: 1.55;
+  padding: 12px 14px;
+  resize: vertical;
+  white-space: pre;
+  tab-size: 2;
+}
+
+.source-textarea:focus {
+  outline: none;
+  border-color: var(--accent, #b85a3e);
+}
+
+.source-hint {
+  font-size: 10.5px;
+  color: var(--muted, #55504a);
+  line-height: 1.5;
+}

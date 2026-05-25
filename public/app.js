@@ -90,6 +90,8 @@ window.fetch = (url, opts = {}) => {
     btnExportPptx.disabled = false;
     const btnSlideExport = document.getElementById('btn-slide-export');
     if (btnSlideExport) btnSlideExport.disabled = false;
+    const btnSlideSrc = document.getElementById('btn-slide-source');
+    if (btnSlideSrc) btnSlideSrc.disabled = false;
     Chat.reset();
     if (typeof Agent !== 'undefined' && Agent.reset) Agent.reset();
     await Viewer.loadDeck(id);
@@ -169,6 +171,82 @@ window.fetch = (url, opts = {}) => {
     } catch (e) {
       showToast(e.message, true);
     }
+  }
+
+  // ── Raw slide-source drawer ──
+  const btnSlideSource = document.getElementById('btn-slide-source');
+  const sourceDialog = document.getElementById('source-dialog');
+  const sourceTextarea = document.getElementById('source-textarea');
+  const sourceCancel = document.getElementById('source-cancel');
+  const sourceSave = document.getElementById('source-save');
+  const sourceDialogTitle = document.getElementById('source-dialog-title');
+  const sourceHint = document.getElementById('source-hint');
+
+  async function openSourceDrawer() {
+    if (!currentDeckId) return;
+    const { slideIndex } = Viewer.current;
+    if (slideIndex === undefined || slideIndex === null) {
+      showToast('No slide selected', true);
+      return;
+    }
+    sourceDialogTitle.textContent = `Slide ${slideIndex + 1} source — ${currentDeckId}`;
+    sourceHint.textContent = 'Loading…';
+    sourceTextarea.value = '';
+    sourceDialog.style.display = 'flex';
+
+    try {
+      const res = await fetch(`/api/decks/${encodeURIComponent(currentDeckId)}/slide/${slideIndex}/source`);
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Could not load slide', true); sourceDialog.style.display = 'none'; return; }
+      sourceTextarea.value = data.markdown || '';
+      sourceHint.textContent = 'Edit the raw Marp markdown. The iframe refreshes automatically on save.';
+      setTimeout(() => sourceTextarea.focus(), 50);
+    } catch (e) {
+      showToast(e.message, true);
+      sourceDialog.style.display = 'none';
+    }
+  }
+
+  async function saveSourceDrawer() {
+    if (!currentDeckId) return;
+    const { slideIndex } = Viewer.current;
+    if (slideIndex === undefined || slideIndex === null) return;
+    sourceSave.disabled = true;
+    const origLabel = sourceSave.textContent;
+    sourceSave.textContent = 'Saving…';
+    try {
+      const res = await fetch(`/api/decks/${encodeURIComponent(currentDeckId)}/slide/${slideIndex}/source`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ markdown: sourceTextarea.value })
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || 'Save failed', true); return; }
+      sourceDialog.style.display = 'none';
+      showToast(`✓ Slide ${slideIndex + 1} source saved`);
+      // The file watcher will refresh the iframe.
+    } catch (e) {
+      showToast(e.message, true);
+    } finally {
+      sourceSave.disabled = false;
+      sourceSave.textContent = origLabel;
+    }
+  }
+
+  if (btnSlideSource && sourceDialog) {
+    btnSlideSource.addEventListener('click', openSourceDrawer);
+    sourceCancel.addEventListener('click', () => { sourceDialog.style.display = 'none'; });
+    sourceSave.addEventListener('click', saveSourceDrawer);
+    sourceDialog.addEventListener('click', e => {
+      if (e.target === sourceDialog) sourceDialog.style.display = 'none';
+    });
+    // Cmd/Ctrl+S inside the drawer saves
+    sourceTextarea.addEventListener('keydown', e => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+        e.preventDefault();
+        saveSourceDrawer();
+      }
+    });
   }
 
   const btnSlideExport = document.getElementById('btn-slide-export');

@@ -78,6 +78,28 @@ const Viewer = (() => {
     refreshCurrent();
   });
 
+  // Live reload: SSE subscription to filesystem changes under decks/. Refresh
+  // the iframe whenever the *current* deck's .md is rewritten — by the agent,
+  // the source drawer, or an external editor.
+  let watchSource = null;
+  function openWatchStream() {
+    if (watchSource) return;
+    try {
+      watchSource = new EventSource('/api/watch/stream');
+      watchSource.addEventListener('change', e => {
+        try {
+          const data = JSON.parse(e.data);
+          if (data.deckId === currentDeckId) refreshCurrent();
+        } catch (_) {}
+      });
+      watchSource.onerror = () => {
+        if (watchSource) { watchSource.close(); watchSource = null; }
+        setTimeout(openWatchStream, 3000);
+      };
+    } catch (_) {}
+  }
+  openWatchStream();
+
   async function handleDragPosition(data) {
     if (!currentDeckId) return;
     // Fire-and-forget: save position to markdown, no re-render (iframe already shows the drag result)
