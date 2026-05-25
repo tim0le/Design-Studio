@@ -65,6 +65,26 @@ function replaceInSource(source, needle, replacement) {
   return null;
 }
 
+// Swap the inner text of an HTML element while preserving its outer tags and
+// attributes. Given the iframe's outerHTML like `<h2 class="x">old text</h2>`
+// and a replacement string, produce `<h2 class="x">replacement</h2>`. Used as
+// the first-choice locator for edits because outerHTML is byte-exact and
+// usually unique within a slide, unlike the stripped textContent.
+function replaceByOuterHtml(source, elementHtml, replacementText) {
+  const idx = source.indexOf(elementHtml);
+  if (idx < 0) return null;
+
+  const openMatch = elementHtml.match(/^<([a-zA-Z][a-zA-Z0-9-]*)(\s[^>]*)?>/);
+  const closeMatch = elementHtml.match(/<\/([a-zA-Z][a-zA-Z0-9-]*)>\s*$/);
+  // Only do the wrap-preserving replace when the element has a matching pair of
+  // open/close tags of the same name. Self-closing / fragment cases fall back.
+  if (!openMatch || !closeMatch || openMatch[1].toLowerCase() !== closeMatch[1].toLowerCase()) {
+    return source.substring(0, idx) + replacementText + source.substring(idx + elementHtml.length);
+  }
+  const rebuilt = openMatch[0] + replacementText + closeMatch[0];
+  return source.substring(0, idx) + rebuilt + source.substring(idx + elementHtml.length);
+}
+
 router.post('/', async (req, res) => {
   const { deckId, slideIndex, elementText, elementHtml, instruction, mode = 'edit' } = req.body;
 
@@ -95,10 +115,16 @@ router.post('/', async (req, res) => {
       }
     } else {
       replacement = await editElement({ apiKey, deckId, slideIndex: idx, slideMarkdown, elementText, instruction });
-      const next = replaceInSource(slideMarkdown, elementText, replacement);
+      // Locator strategy (most specific → least):
+      //   1. outerHTML match — exact, preserves tags/attrs
+      //   2. exact elementText match
+      //   3. fuzzy elementText match (whitespace + markdown emphasis stripped)
+      let next = null;
+      if (elementHtml) next = replaceByOuterHtml(slideMarkdown, elementHtml, replacement);
+      if (next === null) next = replaceInSource(slideMarkdown, elementText, replacement);
       if (next === null) {
         return res.status(422).json({
-          error: 'Could not locate the selected text in the source markdown. The element may span multiple source blocks or contain dynamic content. Try selecting a smaller, more specific element.',
+          error: 'Could not locate the selected text in the source markdown. Try a smaller selection — or use Agent mode, which can edit the file directly.',
           replacement,
           elementTextPreview: elementText.substring(0, 100)
         });
