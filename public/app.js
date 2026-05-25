@@ -87,6 +87,8 @@ window.fetch = (url, opts = {}) => {
     topbarName.textContent = name;
     btnExportPdf.disabled = false;
     btnExportPptx.disabled = false;
+    const btnSlideExport = document.getElementById('btn-slide-export');
+    if (btnSlideExport) btnSlideExport.disabled = false;
     Chat.reset();
     if (typeof Agent !== 'undefined' && Agent.reset) Agent.reset();
     await Viewer.loadDeck(id);
@@ -127,6 +129,63 @@ window.fetch = (url, opts = {}) => {
 
   btnExportPdf.addEventListener('click', () => exportDeck('pdf'));
   btnExportPptx.addEventListener('click', () => exportDeck('pptx'));
+
+  // ── Single-slide export ──
+  async function exportCurrentSlide(format) {
+    if (!currentDeckId) return;
+    const { slideIndex } = Viewer.current;
+    if (slideIndex === undefined || slideIndex === null) {
+      showToast('No slide selected', true);
+      return;
+    }
+    showToast(`Exporting slide ${slideIndex + 1} as ${format.toUpperCase()}…`);
+    try {
+      const res = await fetch('/api/export/slide', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ deckId: currentDeckId, slideIndex, format })
+      });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        showToast(d.error || 'Slide export failed', true);
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const safeId = currentDeckId.replace(/\//g, '_');
+      const pad = String(slideIndex + 1).padStart(2, '0');
+      a.download = `${safeId}_slide${pad}.${format === 'jpeg' ? 'jpg' : format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`✓ Slide ${slideIndex + 1} ${format.toUpperCase()} downloaded`);
+    } catch (e) {
+      showToast(e.message, true);
+    }
+  }
+
+  const btnSlideExport = document.getElementById('btn-slide-export');
+  const slideExportPopup = document.getElementById('slide-export-popup');
+  if (btnSlideExport && slideExportPopup) {
+    btnSlideExport.addEventListener('click', e => {
+      e.stopPropagation();
+      const isOpen = slideExportPopup.style.display !== 'none';
+      slideExportPopup.style.display = isOpen ? 'none' : 'flex';
+    });
+    slideExportPopup.querySelectorAll('.slide-export-option').forEach(btn => {
+      btn.addEventListener('click', () => {
+        slideExportPopup.style.display = 'none';
+        exportCurrentSlide(btn.dataset.format);
+      });
+    });
+    // Close on outside click
+    document.addEventListener('click', e => {
+      if (!slideExportPopup.contains(e.target) && e.target !== btnSlideExport) {
+        slideExportPopup.style.display = 'none';
+      }
+    });
+  }
 
   // ── Settings / API Key ──
   function updateSettingsBtn() {

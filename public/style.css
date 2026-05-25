@@ -1148,3 +1148,44 @@ html, body {
 }
 
 .btn-cancel:disabled { opacity: 0.5; cursor: not-allowed; }
+
+/* ── Single-slide export popup ── */
+.slide-export-menu {
+  position: relative;
+  display: inline-block;
+  margin-left: 12px;
+}
+
+.slide-export-popup {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg1, #181510);
+  border: 1px solid var(--rule, #2c2820);
+  border-radius: 4px;
+  padding: 4px;
+  z-index: 50;
+  min-width: 90px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.4);
+}
+
+.slide-export-option {
+  background: transparent;
+  border: none;
+  color: var(--body, #9b9490);
+  font: inherit;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 6px 10px;
+  text-align: left;
+  cursor: pointer;
+  border-radius: 3px;
+  font-family: inherit;
+}
+
+.slide-export-option:hover {
+  background: rgba(184,90,62,0.12);
+  color: var(--white, #f5f3f0);
+}

@@ -44,6 +44,16 @@
         <button class="nav-btn" id="btn-prev" disabled>←</button>
         <span class="nav-page" id="nav-page">—</span>
         <button class="nav-btn" id="btn-next" disabled>→</button>
+        <div class="slide-export-menu">
+          <button class="nav-btn" id="btn-slide-export" disabled title="Export this slide">↓ Slide</button>
+          <div class="slide-export-popup" id="slide-export-popup" style="display:none;">
+            <button class="slide-export-option" data-format="pdf">PDF</button>
+            <button class="slide-export-option" data-format="pptx">PPTX</button>
+            <button class="slide-export-option" data-format="png">PNG</button>
+            <button class="slide-export-option" data-format="jpg">JPG</button>
+            <button class="slide-export-option" data-format="html">HTML</button>
+          </div>
+        </div>
       </div>
       <div class="slide-stage">
         <div class="slide-wrapper" id="slide-wrapper">
