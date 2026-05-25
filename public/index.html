@@ -35,7 +35,7 @@
       <div class="deck-items" id="deck-items">
         <div style="padding:20px 10px; font-size:11px; color:var(--muted); text-align:center;">Loading…</div>
       </div>
-      <input type="file" id="file-upload" accept=".md" style="display:none">
+      <input type="file" id="file-upload" accept=".md,.html,.htm,.txt,.png,.jpg,.jpeg,.webp,.gif" style="display:none">
     </aside>
 
     <!-- Center: Viewer -->
@@ -163,17 +163,27 @@
   </div>
 </div>
 
-<!-- Upload lang picker -->
+<!-- Upload lang + kind picker -->
 <div class="upload-dialog" id="upload-dialog" style="display:none;">
   <div class="upload-dialog-inner">
-    <div class="upload-dialog-title">Upload Deck</div>
+    <div class="upload-dialog-title">Upload</div>
     <div class="upload-dialog-file" id="upload-dialog-file"></div>
+    <div class="upload-dialog-row">
+      <label class="upload-dialog-label">Kind</label>
+      <select class="upload-dialog-select" id="upload-kind">
+        <option value="deck">Deck (multi-slide)</option>
+        <option value="one_pager">One-pager (single slide)</option>
+      </select>
+    </div>
     <div class="upload-dialog-row">
       <label class="upload-dialog-label">Language</label>
       <select class="upload-dialog-select" id="upload-lang">
         <option value="en">English (en)</option>
         <option value="de">Deutsch (de)</option>
       </select>
+    </div>
+    <div style="font-size:10px;color:var(--muted);line-height:1.5;margin-top:4px;">
+      Supported: .md, .html, .txt, .png, .jpg, .jpeg, .webp, .gif. PDF/PPTX are not yet supported — export to PNG or paste text first.
     </div>
     <div class="upload-dialog-actions">
       <button class="btn" id="upload-cancel">Cancel</button>

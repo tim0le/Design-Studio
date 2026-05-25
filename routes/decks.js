@@ -1,21 +1,27 @@
 const express = require('express');
 const router = express.Router();
 const { listDecks, readDeck, writeDeck, createDeck } = require('../lib/deck');
+const { convertToDeckSource } = require('../lib/importers');
 
 router.post('/upload', (req, res) => {
   try {
-    const { name, content, lang } = req.body;
-    if (!name || !content) return res.status(400).json({ error: 'name and content required' });
-    const sanitized = name.replace(/\.md$/, '').replace(/[^a-zA-Z0-9_-]/g, '_').toLowerCase();
-    if (!sanitized) return res.status(400).json({ error: 'invalid deck name' });
-    const validLang = ['de', 'en'].includes(lang) ? lang : 'en';
-    const deckId = `${validLang}/${sanitized}`;
-    createDeck(deckId, content);
+    const { name, content, contentBase64, mime, lang, kind } = req.body;
+    if (!name || (!content && !contentBase64)) {
+      return res.status(400).json({ error: 'name and content (or contentBase64) required' });
+    }
+
+    const { deckId, markdown, format } = convertToDeckSource({
+      name, content, contentBase64, mime, lang, kind
+    });
+
+    createDeck(deckId, markdown);
     const decks = listDecks();
-    const deck = decks.find(d => d.id === deckId) || { id: deckId, name: sanitized, lang: validLang };
-    res.json({ success: true, deckId, deck });
+    const validLang = ['de', 'en'].includes(lang) ? lang : 'en';
+    const deck = decks.find(d => d.id === deckId)
+      || { id: deckId, name: deckId.split('/').pop(), lang: validLang };
+    res.json({ success: true, deckId, deck, format });
   } catch (e) {
-    res.status(500).json({ error: e.message });
+    res.status(400).json({ error: e.message });
   }
 });
 

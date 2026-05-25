@@ -64,11 +64,12 @@ window.fetch = (url, opts = {}) => {
       const item = document.createElement('div');
       item.className = 'deck-item';
       item.dataset.id = deck.id;
+      const kindLabel = deck.kind === 'one_pager' ? 'One-pager' : `${deck.slideCount} slide${deck.slideCount !== 1 ? 's' : ''}`;
       item.innerHTML = `
         <div class="deck-item-icon">${deck.lang.toUpperCase()}</div>
         <div class="deck-item-info">
           <div class="deck-item-name">${escHtml(deck.name)}</div>
-          <div class="deck-item-meta">${deck.slideCount} slide${deck.slideCount !== 1 ? 's' : ''}</div>
+          <div class="deck-item-meta">${kindLabel}</div>
         </div>
       `;
       item.addEventListener('click', () => selectDeck(deck.id, deck.name));
@@ -221,22 +222,43 @@ window.fetch = (url, opts = {}) => {
   apiKeyInput.addEventListener('keydown', e => { if (e.key === 'Enter') settingsSave.click(); });
   settingsDialog.addEventListener('click', e => { if (e.target === settingsDialog) settingsDialog.style.display = 'none'; });
 
-  // ── Upload ──
+  // ── Upload (multi-format) ──
+  const uploadKind = document.getElementById('upload-kind');
+  const IMAGE_EXT = /\.(png|jpe?g|webp|gif)$/i;
+
   btnUpload.addEventListener('click', () => fileUpload.click());
 
   fileUpload.addEventListener('change', () => {
     const file = fileUpload.files[0];
     if (!file) return;
     const reader = new FileReader();
+    const isImage = IMAGE_EXT.test(file.name);
+
     reader.onload = e => {
-      pendingUpload = { name: file.name, content: e.target.result };
+      if (isImage) {
+        // result is a data URL like "data:image/png;base64,iVBOR…"
+        const result = e.target.result;
+        const b64 = String(result).replace(/^data:[^,]+,/, '');
+        pendingUpload = {
+          name: file.name,
+          contentBase64: b64,
+          mime: file.type || 'application/octet-stream'
+        };
+      } else {
+        pendingUpload = { name: file.name, content: e.target.result };
+      }
       uploadDialogFile.textContent = file.name;
-      // Auto-detect language from filename
       if (file.name.match(/\b(de|deutsch|german)\b/i)) uploadLang.value = 'de';
       else uploadLang.value = 'en';
+      // Default kind: one-pager for single images or non-md formats
+      if (uploadKind) {
+        uploadKind.value = isImage || /\.(html?|txt)$/i.test(file.name) ? 'one_pager' : 'deck';
+      }
       uploadDialog.style.display = 'flex';
     };
-    reader.readAsText(file);
+
+    if (isImage) reader.readAsDataURL(file);
+    else reader.readAsText(file);
     fileUpload.value = ''; // reset so same file can be re-uploaded
   });
 
@@ -250,22 +272,29 @@ window.fetch = (url, opts = {}) => {
     uploadConfirm.disabled = true;
     uploadConfirm.textContent = 'Uploading…';
     try {
+      const payload = {
+        name: pendingUpload.name,
+        lang: uploadLang.value,
+        kind: uploadKind ? uploadKind.value : 'deck'
+      };
+      if (pendingUpload.contentBase64) {
+        payload.contentBase64 = pendingUpload.contentBase64;
+        payload.mime = pendingUpload.mime;
+      } else {
+        payload.content = pendingUpload.content;
+      }
+
       const res = await fetch('/api/decks/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: pendingUpload.name,
-          content: pendingUpload.content,
-          lang: uploadLang.value
-        })
+        body: JSON.stringify(payload)
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || 'Upload failed', true); return; }
       uploadDialog.style.display = 'none';
       pendingUpload = null;
       await loadDecks();
-      showToast(`✓ Deck "${data.deck.name}" uploaded`);
-      // Auto-select the uploaded deck
+      showToast(`✓ ${payload.kind === 'one_pager' ? 'One-pager' : 'Deck'} "${data.deck.name}" uploaded`);
       if (data.deck) selectDeck(data.deckId, data.deck.name || data.deckId);
     } catch (e) {
       showToast(e.message, true);
