@@ -92,6 +92,7 @@ window.fetch = (url, opts = {}) => {
     if (btnSlideExport) btnSlideExport.disabled = false;
     const btnSlideSrc = document.getElementById('btn-slide-source');
     if (btnSlideSrc) btnSlideSrc.disabled = false;
+    document.querySelectorAll('.slide-crud .nav-btn-icon').forEach(b => { b.disabled = false; });
     Chat.reset();
     if (typeof Agent !== 'undefined' && Agent.reset) Agent.reset();
     await Viewer.loadDeck(id);
@@ -248,6 +249,66 @@ window.fetch = (url, opts = {}) => {
       }
     });
   }
+
+  // ── Slide CRUD ──
+  async function slideOp(label, doFetch, opts = {}) {
+    if (!currentDeckId) return;
+    const { slideIndex } = Viewer.current;
+    if (slideIndex === undefined || slideIndex === null) {
+      showToast('No slide selected', true);
+      return;
+    }
+    try {
+      const res = await doFetch(slideIndex);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(data.error || `${label} failed`, true); return; }
+      // Reload the deck list to update slide counts; then navigate to the new
+      // target index reported by the server (insertedAt / movedTo / index-1
+      // for delete) so the iframe shows the result.
+      await loadDecks();
+      const target = opts.targetFromResponse ? opts.targetFromResponse(data, slideIndex) : slideIndex;
+      await Viewer.loadDeck(currentDeckId, target);
+      showToast(`✓ ${label}`);
+    } catch (e) {
+      showToast(e.message, true);
+    }
+  }
+
+  const slideCrudHandlers = {
+    'btn-slide-add': () => slideOp('Slide added', i => fetch(`/api/slides/${encodeURIComponent(currentDeckId)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ insertAt: i + 1 })
+    }), { targetFromResponse: d => d.insertedAt }),
+
+    'btn-slide-duplicate': () => slideOp('Slide duplicated', i => fetch(`/api/slides/${encodeURIComponent(currentDeckId)}/${i}/duplicate`, {
+      method: 'POST'
+    }), { targetFromResponse: d => d.insertedAt }),
+
+    'btn-slide-up': () => slideOp('Slide moved up', i => fetch(`/api/slides/${encodeURIComponent(currentDeckId)}/${i}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direction: 'up' })
+    }), { targetFromResponse: d => d.movedTo }),
+
+    'btn-slide-down': () => slideOp('Slide moved down', i => fetch(`/api/slides/${encodeURIComponent(currentDeckId)}/${i}/move`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ direction: 'down' })
+    }), { targetFromResponse: d => d.movedTo }),
+
+    'btn-slide-delete': () => {
+      if (!confirm('Delete this slide? This cannot be undone.')) return;
+      return slideOp('Slide deleted', i => fetch(`/api/slides/${encodeURIComponent(currentDeckId)}/${i}`, {
+        method: 'DELETE'
+      }), { targetFromResponse: (d, i) => Math.max(0, i - 1) });
+    },
+  };
+
+  Object.entries(slideCrudHandlers).forEach(([id, handler]) => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('click', handler);
+  });
 
   const btnSlideExport = document.getElementById('btn-slide-export');
   const slideExportPopup = document.getElementById('slide-export-popup');

@@ -17,6 +17,7 @@ app.use('/api/export', require('./routes/export'));
 app.use('/api/move', require('./routes/move'));
 app.use('/api/agent', require('./routes/agent'));
 app.use('/api/watch', require('./routes/watch'));
+app.use('/api/slides', require('./routes/slides'));
 
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));

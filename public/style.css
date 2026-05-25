@@ -1227,3 +1227,33 @@ html, body {
   color: var(--muted, #55504a);
   line-height: 1.5;
 }
+
+/* ── Slide CRUD toolbar ── */
+.slide-crud {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 10px;
+  padding-left: 10px;
+  border-left: 1px solid var(--rule, #2c2820);
+}
+
+.nav-btn-icon {
+  min-width: 28px;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+}
+
+.nav-btn-danger {
+  color: rgba(184, 90, 62, 0.85);
+}
+
+.nav-btn-danger:hover:not(:disabled) {
+  background: rgba(184, 90, 62, 0.15);
+  color: #e55a3e;
+}
