@@ -88,6 +88,7 @@ window.fetch = (url, opts = {}) => {
     btnExportPdf.disabled = false;
     btnExportPptx.disabled = false;
     Chat.reset();
+    if (typeof Agent !== 'undefined' && Agent.reset) Agent.reset();
     await Viewer.loadDeck(id);
   }
 
