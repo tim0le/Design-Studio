@@ -164,16 +164,53 @@
 
 <div class="toast" id="toast"></div>
 
-<!-- API Key dialog -->
+<!-- Backend / API Key dialog -->
 <div class="upload-dialog" id="settings-dialog" style="display:none;">
   <div class="upload-dialog-inner">
-    <div class="upload-dialog-title">Anthropic API Key</div>
-    <div style="font-size:11px;color:var(--body);line-height:1.6;margin-bottom:4px;">Paste your key — stored locally in your browser, never sent anywhere except the Anthropic API.</div>
-    <input type="password" class="api-key-input" id="api-key-input" placeholder="sk-ant-api03-..." autocomplete="off" spellcheck="false">
+    <div class="upload-dialog-title">Agent backend</div>
+    <div style="font-size:11px;color:var(--body);line-height:1.6;margin-bottom:-4px;">Pick where agent requests are routed. All values are stored locally in your browser.</div>
+
+    <div class="backend-picker">
+      <label class="backend-radio">
+        <input type="radio" name="backend-provider" value="anthropic" id="backend-anthropic" checked>
+        <span class="backend-radio-dot"></span>
+        <span class="backend-radio-label">
+          <span class="backend-radio-name">Anthropic Cloud</span>
+          <span class="backend-radio-hint">api.anthropic.com — uses your sk-ant key.</span>
+        </span>
+      </label>
+      <label class="backend-radio">
+        <input type="radio" name="backend-provider" value="local" id="backend-local">
+        <span class="backend-radio-dot"></span>
+        <span class="backend-radio-label">
+          <span class="backend-radio-name">Local server</span>
+          <span class="backend-radio-hint">Anthropic-compatible proxy on your network (e.g. LiteLLM).</span>
+        </span>
+      </label>
+    </div>
+
+    <!-- Anthropic Cloud fields -->
+    <div class="backend-section" id="backend-section-anthropic">
+      <label class="upload-dialog-label" for="api-key-input">API key</label>
+      <input type="password" class="api-key-input" id="api-key-input" placeholder="sk-ant-api03-..." autocomplete="off" spellcheck="false">
+    </div>
+
+    <!-- Local server fields -->
+    <div class="backend-section" id="backend-section-local" style="display:none;">
+      <label class="upload-dialog-label" for="backend-url-input">Base URL</label>
+      <input type="text" class="api-key-input" id="backend-url-input" placeholder="http://devbox.local:4000" autocomplete="off" spellcheck="false">
+
+      <label class="upload-dialog-label" for="backend-model-input" style="margin-top:8px;">Model</label>
+      <input type="text" class="api-key-input" id="backend-model-input" placeholder="gemma3-27b" autocomplete="off" spellcheck="false">
+
+      <label class="upload-dialog-label" for="backend-key-input" style="margin-top:8px;">API key <span style="font-weight:400;text-transform:none;letter-spacing:0;color:var(--muted);">(optional for most local proxies)</span></label>
+      <input type="password" class="api-key-input" id="backend-key-input" placeholder="leave blank if not required" autocomplete="off" spellcheck="false">
+    </div>
+
     <div class="api-key-status" id="api-key-status"></div>
     <div class="upload-dialog-actions">
       <button class="btn" id="settings-cancel">Cancel</button>
-      <button class="btn btn-primary" id="settings-save">Save key</button>
+      <button class="btn btn-primary" id="settings-save">Save</button>
     </div>
   </div>
 </div>

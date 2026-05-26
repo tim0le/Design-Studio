@@ -32,8 +32,41 @@ router.post('/edit', async (req, res) => {
     }
   }
 
-  const apiKey = req.headers['x-api-key'] || process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
+  // Optional per-request routing overrides. Either header may be absent; when
+  // missing or empty we fall back to whatever the SDK / underlying client
+  // already picks up from env. We trim because users pasting URLs from a
+  // browser frequently include a trailing space or CR.
+  const rawBackendUrl = req.headers['x-backend-url'];
+  const baseURL = typeof rawBackendUrl === 'string' ? rawBackendUrl.trim() : '';
+  if (baseURL) {
+    try {
+      const parsed = new URL(baseURL);
+      if (!['http:', 'https:'].includes(parsed.protocol) || !parsed.host) throw new Error();
+    } catch {
+      return res.status(400).json({ error: 'X-Backend-URL must be a valid http(s) URL with a host' });
+    }
+  }
+
+  const rawBackendModel = req.headers['x-backend-model'];
+  const model = typeof rawBackendModel === 'string' ? rawBackendModel.trim() : '';
+  if (baseURL && !model) {
+    return res.status(400).json({ error: 'X-Backend-Model is required when X-Backend-URL is set' });
+  }
+
+  // Resolve the API key. Critical: when the user explicitly routes to a local
+  // server (baseURL set), do NOT fall back to process.env.ANTHROPIC_API_KEY —
+  // forwarding a real Anthropic key to an unknown proxy host would leak it.
+  // Only header-supplied keys travel to local backends.
+  const headerKey = req.headers['x-api-key'];
+  const apiKey = baseURL
+    ? (typeof headerKey === 'string' && headerKey.trim() ? headerKey.trim() : '')
+    : (headerKey || process.env.ANTHROPIC_API_KEY);
+
+  // When routing to a local server, the proxy itself usually does not require
+  // an Anthropic-format key — so a missing apiKey is only fatal if we are
+  // talking to Anthropic Cloud. Pass a placeholder downstream when local so
+  // the SDK's "no key" guard doesn't trip.
+  if (!apiKey && !baseURL) {
     return res.status(503).json({ error: 'No API key — click ⚙ API Key in the toolbar to add yours.' });
   }
 
@@ -60,13 +93,19 @@ router.post('/edit', async (req, res) => {
 
   try {
     const iterator = editSlideWithAgent({
-      apiKey,
+      // Some local proxies reject blank Authorization headers — pass a
+      // placeholder so the @anthropic-ai/sdk constructs a request with *some*
+      // bearer. LiteLLM ignores it; real Anthropic Cloud would reject it,
+      // but we only hit this branch when baseURL is also set.
+      apiKey: apiKey || (baseURL ? 'local-no-key' : undefined),
       deckId,
       slideIndex: parsedSlideIndex,
       elementText,
       elementHtml,
       instruction,
       resumeSessionId,
+      baseURL: baseURL || undefined,
+      model: model || undefined,
       signal: abortController.signal,
     });
 
