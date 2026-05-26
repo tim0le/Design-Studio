@@ -1,20 +1,101 @@
-/* ── API Key management (global) ── */
-const ApiKey = (() => {
-  const KEY = 'fgs_api_key';
-  let _key = localStorage.getItem(KEY) || '';
+/* ── Backend config (global) ──
+ *
+ * Stores where agent requests are routed. Shape:
+ *   { provider: 'anthropic' | 'local',
+ *     apiKey:   string,                      // sk-ant-… for anthropic; optional auth for local
+ *     baseURL:  string,                      // only used when provider==='local'
+ *     model:    string }                     // only used when provider==='local'
+ *
+ * Persisted as a single JSON blob under localStorage['fgs_backend'].
+ *
+ * Legacy migration: the previous build stored only the Anthropic key under
+ * localStorage['fgs_api_key']. If we find it on first load and no new blob
+ * exists, we promote it into the new shape and remove the old key so we never
+ * read it again.
+ *
+ * `ApiKey` is kept as a thin back-compat alias so other modules (chat.js,
+ * agent.js) that still call ApiKey.get()/isSet() continue to work without an
+ * intrusive rename.
+ */
+const BackendConfig = (() => {
+  const KEY = 'fgs_backend';
+  const LEGACY_KEY = 'fgs_api_key';
+  const DEFAULT = { provider: 'anthropic', apiKey: '', baseURL: '', model: '' };
 
-  function get() { return _key; }
-  function set(k) { _key = k.trim(); if (_key) localStorage.setItem(KEY, _key); else localStorage.removeItem(KEY); }
-  function headers() { return _key ? { 'X-API-Key': _key } : {}; }
-  function isSet() { return !!_key; }
-  return { get, set, headers, isSet };
+  let _state = DEFAULT;
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      _state = Object.assign({}, DEFAULT, parsed);
+    } else {
+      const legacy = localStorage.getItem(LEGACY_KEY);
+      if (legacy) {
+        _state = Object.assign({}, DEFAULT, { apiKey: legacy });
+        localStorage.setItem(KEY, JSON.stringify(_state));
+        localStorage.removeItem(LEGACY_KEY);
+      }
+    }
+  } catch (_) {
+    // Corrupt JSON — fall back to defaults rather than crashing the app.
+    _state = DEFAULT;
+  }
+
+  function get() { return Object.assign({}, _state); }
+  function provider() { return _state.provider; }
+  function apiKey() { return _state.apiKey; }
+  function baseURL() { return _state.baseURL; }
+  function model() { return _state.model; }
+
+  function set(next) {
+    _state = Object.assign({}, DEFAULT, next || {});
+    _state.provider = _state.provider === 'local' ? 'local' : 'anthropic';
+    _state.apiKey = (_state.apiKey || '').trim();
+    _state.baseURL = (_state.baseURL || '').trim();
+    _state.model = (_state.model || '').trim();
+    localStorage.setItem(KEY, JSON.stringify(_state));
+  }
+
+  // "Configured" means: provider==='anthropic' with an API key, OR
+  // provider==='local' with at least a base URL. Used to toggle the toolbar
+  // button's green dot — purely cosmetic.
+  function isConfigured() {
+    if (_state.provider === 'local') return !!_state.baseURL;
+    return !!_state.apiKey;
+  }
+
+  function headers() {
+    const h = {};
+    if (_state.apiKey) h['X-API-Key'] = _state.apiKey;
+    if (_state.provider === 'local') {
+      if (_state.baseURL) h['X-Backend-URL'] = _state.baseURL;
+      if (_state.model) h['X-Backend-Model'] = _state.model;
+    }
+    return h;
+  }
+
+  return { get, set, provider, apiKey, baseURL, model, isConfigured, headers };
 })();
 
-// Monkey-patch fetch to auto-inject API key header
+// Back-compat shim — older modules in this app reference `ApiKey`.
+const ApiKey = {
+  get: () => BackendConfig.apiKey(),
+  set: (k) => BackendConfig.set(Object.assign(BackendConfig.get(), { apiKey: k })),
+  headers: () => BackendConfig.headers(),
+  isSet: () => BackendConfig.isConfigured(),
+};
+
+// Monkey-patch fetch to auto-inject backend routing headers on /api/ calls.
+// Backend overrides (X-Backend-URL / X-Backend-Model) are only meaningful for
+// /api/agent/* but they're cheap to send everywhere and the other routes
+// ignore unknown headers.
 const _origFetch = window.fetch.bind(window);
 window.fetch = (url, opts = {}) => {
-  if (typeof url === 'string' && url.startsWith('/api/') && ApiKey.isSet()) {
-    opts.headers = Object.assign({}, opts.headers || {}, ApiKey.headers());
+  if (typeof url === 'string' && url.startsWith('/api/')) {
+    const injected = BackendConfig.headers();
+    if (Object.keys(injected).length) {
+      opts.headers = Object.assign({}, opts.headers || {}, injected);
+    }
   }
   return _origFetch(url, opts);
 };
@@ -357,38 +438,104 @@ window.fetch = (url, opts = {}) => {
     });
   }
 
-  // ── Settings / API Key ──
+  // ── Settings / Backend ──
+  const backendAnthropicRadio = document.getElementById('backend-anthropic');
+  const backendLocalRadio = document.getElementById('backend-local');
+  const backendSectionAnthropic = document.getElementById('backend-section-anthropic');
+  const backendSectionLocal = document.getElementById('backend-section-local');
+  const backendUrlInput = document.getElementById('backend-url-input');
+  const backendModelInput = document.getElementById('backend-model-input');
+  const backendKeyInput = document.getElementById('backend-key-input');
+
   function updateSettingsBtn() {
-    btnSettings.classList.toggle('has-key', ApiKey.isSet());
-    btnSettings.title = ApiKey.isSet() ? '⚙ API Key set — click to change' : '⚙ Set API key to enable AI edits';
+    const configured = BackendConfig.isConfigured();
+    btnSettings.classList.toggle('has-key', configured);
+    const provider = BackendConfig.provider();
+    if (configured) {
+      btnSettings.title = provider === 'local'
+        ? `⚙ Routing to local server (${BackendConfig.baseURL()}) — click to change`
+        : '⚙ Anthropic key set — click to change';
+    } else {
+      btnSettings.title = '⚙ Configure agent backend';
+    }
   }
   updateSettingsBtn();
 
+  function syncBackendSections() {
+    const isLocal = backendLocalRadio.checked;
+    backendSectionLocal.style.display = isLocal ? 'flex' : 'none';
+    backendSectionLocal.style.flexDirection = 'column';
+    backendSectionAnthropic.style.display = isLocal ? 'none' : 'flex';
+    backendSectionAnthropic.style.flexDirection = 'column';
+  }
+
+  backendAnthropicRadio.addEventListener('change', syncBackendSections);
+  backendLocalRadio.addEventListener('change', syncBackendSections);
+
   btnSettings.addEventListener('click', () => {
-    apiKeyInput.value = ApiKey.get();
-    apiKeyStatus.textContent = ApiKey.isSet() ? '✓ Key saved' : '';
-    apiKeyStatus.className = 'api-key-status' + (ApiKey.isSet() ? ' ok' : '');
+    const cfg = BackendConfig.get();
+    if (cfg.provider === 'local') {
+      backendLocalRadio.checked = true;
+      // Show the local key field's existing value here, not the (separate)
+      // Anthropic field — keeps the two scoped per-provider.
+      backendKeyInput.value = cfg.apiKey;
+      apiKeyInput.value = '';
+    } else {
+      backendAnthropicRadio.checked = true;
+      apiKeyInput.value = cfg.apiKey;
+      backendKeyInput.value = '';
+    }
+    backendUrlInput.value = cfg.baseURL;
+    backendModelInput.value = cfg.model;
+    apiKeyStatus.textContent = BackendConfig.isConfigured() ? '✓ Saved' : '';
+    apiKeyStatus.className = 'api-key-status' + (BackendConfig.isConfigured() ? ' ok' : '');
+    syncBackendSections();
     settingsDialog.style.display = 'flex';
-    setTimeout(() => apiKeyInput.focus(), 50);
+    setTimeout(() => {
+      (cfg.provider === 'local' ? backendUrlInput : apiKeyInput).focus();
+    }, 50);
   });
 
   settingsCancel.addEventListener('click', () => { settingsDialog.style.display = 'none'; });
 
+  function setStatus(text, kind) {
+    apiKeyStatus.textContent = text;
+    apiKeyStatus.className = 'api-key-status' + (kind ? ' ' + kind : '');
+  }
+
   settingsSave.addEventListener('click', () => {
-    const k = apiKeyInput.value.trim();
-    if (k && !k.startsWith('sk-ant-')) {
-      apiKeyStatus.textContent = 'Key should start with sk-ant-';
-      apiKeyStatus.className = 'api-key-status err';
-      return;
+    const provider = backendLocalRadio.checked ? 'local' : 'anthropic';
+    if (provider === 'local') {
+      const baseURL = backendUrlInput.value.trim();
+      const model = backendModelInput.value.trim();
+      const apiKey = backendKeyInput.value.trim();
+      if (!baseURL) { setStatus('Base URL is required for local server', 'err'); return; }
+      if (!/^https?:\/\//i.test(baseURL)) {
+        setStatus('Base URL must start with http:// or https://', 'err');
+        return;
+      }
+      if (!model) { setStatus('Model name is required', 'err'); return; }
+      BackendConfig.set({ provider, apiKey, baseURL, model });
+    } else {
+      const apiKey = apiKeyInput.value.trim();
+      if (apiKey && !apiKey.startsWith('sk-ant-')) {
+        setStatus('Key should start with sk-ant-', 'err');
+        return;
+      }
+      // Preserve any previously-saved local config so toggling back doesn't lose
+      // the URL/model the user typed in.
+      const prev = BackendConfig.get();
+      BackendConfig.set({ provider, apiKey, baseURL: prev.baseURL, model: prev.model });
     }
-    ApiKey.set(k);
-    apiKeyStatus.textContent = k ? '✓ Key saved' : 'Key removed';
-    apiKeyStatus.className = 'api-key-status ok';
+    setStatus('✓ Saved', 'ok');
     updateSettingsBtn();
     setTimeout(() => { settingsDialog.style.display = 'none'; }, 600);
   });
 
-  apiKeyInput.addEventListener('keydown', e => { if (e.key === 'Enter') settingsSave.click(); });
+  // Enter inside any input submits the form.
+  [apiKeyInput, backendUrlInput, backendModelInput, backendKeyInput].forEach(el => {
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') settingsSave.click(); });
+  });
   settingsDialog.addEventListener('click', e => { if (e.target === settingsDialog) settingsDialog.style.display = 'none'; });
 
   // ── Upload (multi-format) ──

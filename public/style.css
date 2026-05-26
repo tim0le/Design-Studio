@@ -853,6 +853,79 @@ html, body {
   background: #5cba7f;
 }
 
+/* Backend picker — radio + collapsible sections in settings dialog */
+.backend-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.backend-radio {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--rule-hi);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  background: var(--bg3);
+}
+.backend-radio:hover { border-color: rgba(184,90,62,0.35); }
+.backend-radio input[type="radio"] {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.backend-radio-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--rule-hi);
+  flex-shrink: 0;
+  margin-top: 2px;
+  position: relative;
+  transition: border-color 0.15s;
+}
+.backend-radio input[type="radio"]:checked ~ .backend-radio-dot {
+  border-color: var(--accent);
+}
+.backend-radio input[type="radio"]:checked ~ .backend-radio-dot::after {
+  content: '';
+  position: absolute;
+  inset: 2px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+.backend-radio:has(input[type="radio"]:checked) {
+  border-color: var(--accent);
+  background: var(--accent-lo);
+}
+.backend-radio-label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+}
+.backend-radio-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--white);
+  letter-spacing: 0.02em;
+}
+.backend-radio-hint {
+  font-size: 10.5px;
+  color: var(--body);
+  line-height: 1.4;
+}
+
+.backend-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.backend-section .upload-dialog-label { margin-bottom: 0; }
+
 /* ── Agent panel: transcript + composer ── */
 .agent-area {
   flex: 1;
