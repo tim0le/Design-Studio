@@ -62,7 +62,7 @@ const Viewer = (() => {
     if (e.key === 'ArrowRight') goTo(currentSlideIndex + 1);
   });
 
-  // Receive messages from iframe (selection + drag)
+  // Receive messages from iframe (selection + drag + edit + delete)
   window.addEventListener('message', e => {
     if (!e.data || !e.data.type) return;
     if (e.data.type === 'element-selected') {
@@ -70,6 +70,12 @@ const Viewer = (() => {
     }
     if (e.data.type === 'drag-position') {
       handleDragPosition(e.data);
+    }
+    if (e.data.type === 'text-edited') {
+      handleTextEdited(e.data);
+    }
+    if (e.data.type === 'element-delete') {
+      handleElementDelete(e.data);
     }
   });
 
@@ -102,23 +108,92 @@ const Viewer = (() => {
 
   async function handleDragPosition(data) {
     if (!currentDeckId) return;
-    // Fire-and-forget: save position to markdown, no re-render (iframe already shows the drag result)
-    fetch('/api/move', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        deckId: currentDeckId,
-        slideIndex: currentSlideIndex,
-        elementText: data.elementText,
-        elementHtml: data.elementHtml,
-        tagName: data.tagName,
-        dx: data.dx,
-        dy: data.dy
-      })
-    }).then(r => r.json()).then(result => {
-      if (result.success) showToast('✓ Position saved');
-      else showToast(result.error || 'Move failed', true);
-    }).catch(err => showToast(err.message, true));
+    try {
+      const res = await fetch('/api/move', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deckId: currentDeckId,
+          slideIndex: currentSlideIndex,
+          fgsId: data.fgsId,
+          elementText: data.elementText,
+          elementHtml: data.elementHtml,
+          tagName: data.tagName,
+          dx: data.dx,
+          dy: data.dy,
+          x: data.x,
+          y: data.y
+        })
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        showToast(result.error || 'Move failed', true);
+        // Force-reload the iframe so the stale CSS transform on the dragged
+        // element is wiped — otherwise it would persist visually until the
+        // user reloads, suggesting the move succeeded when it didn't.
+        refreshCurrent();
+        return;
+      }
+      // On success, the file watcher will refresh the iframe — that reload
+      // both shows the persisted position and clears the stale transform.
+    } catch (err) {
+      showToast(err.message, true);
+      refreshCurrent();
+    }
+  }
+
+  async function handleTextEdited(data) {
+    if (!currentDeckId) return;
+    try {
+      const res = await fetch('/api/text', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deckId: currentDeckId,
+          slideIndex: currentSlideIndex,
+          fgsId: data.fgsId,
+          elementText: data.elementText,
+          elementHtml: data.elementHtml,
+          tagName: data.tagName,
+          newText: data.newText
+        })
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        showToast(result.error || 'Edit failed', true);
+        return;
+      }
+      if (result.deleted) showToast('✓ Element removed (empty edit)');
+      // Iframe will refresh via watcher.
+    } catch (err) {
+      showToast(err.message, true);
+    }
+  }
+
+  async function handleElementDelete(data) {
+    if (!currentDeckId) return;
+    try {
+      const res = await fetch('/api/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          deckId: currentDeckId,
+          slideIndex: currentSlideIndex,
+          fgsId: data.fgsId,
+          elementText: data.elementText,
+          elementHtml: data.elementHtml,
+          tagName: data.tagName
+        })
+      });
+      const result = await res.json();
+      if (!res.ok || !result.success) {
+        showToast(result.error || 'Delete failed', true);
+        return;
+      }
+      // Iframe will refresh via watcher.
+    } catch (err) {
+      showToast(err.message, true);
+    }
   }
 
   return {
