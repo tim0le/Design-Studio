@@ -106,94 +106,79 @@ const Viewer = (() => {
   }
   openWatchStream();
 
-  async function handleDragPosition(data) {
+  // Direct-manipulation handlers (drag / inline edit / delete) all share the
+  // same shape: POST the change to the server, on success ALWAYS reload the
+  // iframe so the user sees the persisted state. We do NOT rely on the chokidar
+  // file watcher's SSE — its debounce + connection lifecycle are unreliable for
+  // tight interactive feedback (and were causing the "element jumps back" bug:
+  // the script clears the drag transform on pointerup, but the iframe still
+  // shows the pre-move render until the watcher fires, so the element snaps
+  // back to its original source position visually).
+  async function postAndRefresh(url, body, opts = {}) {
     if (!currentDeckId) return;
+    const { successToast, errorPrefix } = opts;
     try {
-      const res = await fetch('/api/move', {
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deckId: currentDeckId,
-          slideIndex: currentSlideIndex,
-          fgsId: data.fgsId,
-          elementText: data.elementText,
-          elementHtml: data.elementHtml,
-          tagName: data.tagName,
-          dx: data.dx,
-          dy: data.dy,
-          x: data.x,
-          y: data.y
-        })
+        body: JSON.stringify(body),
       });
-      const result = await res.json();
+      const result = await res.json().catch(() => ({}));
       if (!res.ok || !result.success) {
-        showToast(result.error || 'Move failed', true);
-        // Force-reload the iframe so the stale CSS transform on the dragged
-        // element is wiped — otherwise it would persist visually until the
-        // user reloads, suggesting the move succeeded when it didn't.
+        showToast(result.error || `${errorPrefix || 'Request'} failed`, true);
+        // Force-refresh so any visual state (transform/contenteditable text)
+        // is wiped — keeping the failed visual implies the change persisted.
         refreshCurrent();
-        return;
+        return null;
       }
-      // On success, the file watcher will refresh the iframe — that reload
-      // both shows the persisted position and clears the stale transform.
+      if (successToast) showToast(successToast);
+      // Always refresh — the only authoritative state is the source file +
+      // a fresh Marp render. Doing this here is O(1) HTTP roundtrip; the
+      // watcher SSE is a nice-to-have for external edits, not interactive ops.
+      refreshCurrent();
+      return result;
     } catch (err) {
       showToast(err.message, true);
       refreshCurrent();
+      return null;
     }
+  }
+
+  async function handleDragPosition(data) {
+    return postAndRefresh('/api/move', {
+      deckId: currentDeckId,
+      slideIndex: currentSlideIndex,
+      fgsId: data.fgsId,
+      elementText: data.elementText,
+      elementHtml: data.elementHtml,
+      tagName: data.tagName,
+      dx: data.dx, dy: data.dy,
+      x: data.x, y: data.y,
+    }, { errorPrefix: 'Move' });
   }
 
   async function handleTextEdited(data) {
-    if (!currentDeckId) return;
-    try {
-      const res = await fetch('/api/text', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deckId: currentDeckId,
-          slideIndex: currentSlideIndex,
-          fgsId: data.fgsId,
-          elementText: data.elementText,
-          elementHtml: data.elementHtml,
-          tagName: data.tagName,
-          newText: data.newText
-        })
-      });
-      const result = await res.json();
-      if (!res.ok || !result.success) {
-        showToast(result.error || 'Edit failed', true);
-        return;
-      }
-      if (result.deleted) showToast('✓ Element removed (empty edit)');
-      // Iframe will refresh via watcher.
-    } catch (err) {
-      showToast(err.message, true);
-    }
+    const result = await postAndRefresh('/api/text', {
+      deckId: currentDeckId,
+      slideIndex: currentSlideIndex,
+      fgsId: data.fgsId,
+      elementText: data.elementText,
+      elementHtml: data.elementHtml,
+      tagName: data.tagName,
+      newText: data.newText,
+    }, { errorPrefix: 'Edit' });
+    if (result && result.deleted) showToast('✓ Element removed (empty edit)');
   }
 
   async function handleElementDelete(data) {
-    if (!currentDeckId) return;
-    try {
-      const res = await fetch('/api/delete', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          deckId: currentDeckId,
-          slideIndex: currentSlideIndex,
-          fgsId: data.fgsId,
-          elementText: data.elementText,
-          elementHtml: data.elementHtml,
-          tagName: data.tagName
-        })
-      });
-      const result = await res.json();
-      if (!res.ok || !result.success) {
-        showToast(result.error || 'Delete failed', true);
-        return;
-      }
-      // Iframe will refresh via watcher.
-    } catch (err) {
-      showToast(err.message, true);
-    }
+    return postAndRefresh('/api/delete', {
+      deckId: currentDeckId,
+      slideIndex: currentSlideIndex,
+      fgsId: data.fgsId,
+      elementText: data.elementText,
+      elementHtml: data.elementHtml,
+      tagName: data.tagName,
+    }, { successToast: '✓ Element removed', errorPrefix: 'Delete' });
   }
 
   return {
