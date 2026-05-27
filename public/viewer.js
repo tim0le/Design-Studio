@@ -152,6 +152,9 @@ const Viewer = (() => {
       elementText: data.elementText,
       elementHtml: data.elementHtml,
       tagName: data.tagName,
+      // Current script sends final cumulative translate as {tx, ty}.
+      tx: data.tx, ty: data.ty,
+      // Back-compat with older injected scripts that may still be in cache.
       dx: data.dx, dy: data.dy,
       x: data.x, y: data.y,
     }, { errorPrefix: 'Move' });
