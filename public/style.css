@@ -37,7 +37,17 @@ html, body {
 }
 
 /* ── Layout ── */
-.app { display: flex; flex-direction: column; height: 100vh; }
+/* Shell height: 100vh first as the universal fallback, then dynamic/small
+   viewport units for mobile browsers whose URL bar resizes the viewport. svh
+   (min-height) guarantees the shell is never shorter than the smallest viewport;
+   dvh tracks the live viewport so the layout fills the screen as the bar hides. */
+.app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 100svh;
+  height: 100dvh;
+}
 
 /* ── Topbar ── */
 .topbar {
@@ -46,7 +56,11 @@ html, body {
   border-bottom: 1px solid var(--rule);
   display: flex;
   align-items: center;
-  padding: 0 18px 0 20px;
+  /* Pad past the notch / rounded corners on iOS (viewport-fit=cover). The
+     safe-area insets are 0 on every non-notched device, so desktop is unchanged. */
+  padding: 0 calc(18px + env(safe-area-inset-right)) 0 calc(20px + env(safe-area-inset-left));
+  padding-top: env(safe-area-inset-top);
+  height: calc(var(--topbar) + env(safe-area-inset-top));
   gap: 0;
   flex-shrink: 0;
   z-index: 20;
@@ -644,7 +658,7 @@ html, body {
 /* ── Toast ── */
 .toast {
   position: fixed;
-  bottom: 20px;
+  bottom: calc(20px + env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%) translateY(64px);
   background: var(--bg3);
@@ -656,7 +670,9 @@ html, body {
   border-radius: 6px;
   transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
   z-index: 200;
-  white-space: nowrap;
+  white-space: normal;
+  max-width: min(92vw, 420px);
+  text-align: center;
   box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 }
 
@@ -1351,3 +1367,269 @@ html, body {
   min-width: 200px;
   box-shadow: 0 6px 20px rgba(0,0,0,0.5);
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   MOBILE UX LAYER
+   Everything below is scoped to either the responsive breakpoint
+   (max-width:899px) or pointer capability (hover:none / hover:hover). The
+   desktop 3-column grid above 899px is intentionally left completely untouched.
+   ════════════════════════════════════════════════════════════════════════ */
+
+/* Bottom tab bar + mobile-only slide-nav overflow control are hidden on desktop
+   and turned on only inside the mobile media query below. */
+.mobile-tabbar { display: none; }
+.slide-nav-more { display: none; }
+
+/* On desktop the .slide-nav-secondary wrapper is layout-transparent so its
+   children (Source / CRUD / Export) sit directly in the .slide-nav flex row
+   exactly as before. The mobile @media block overrides this to collapse them
+   into a bottom sheet. */
+.slide-nav-secondary { display: contents; }
+
+/* ── Touch pointer hygiene (independent of width) ──
+   On touch devices :hover can stick after a tap, leaving controls in a
+   highlighted state. Neutralize the hover-driven background/border shifts and
+   rely on :active / :focus-visible for feedback instead. */
+@media (hover: none) {
+  .nav-btn:hover:not(:disabled),
+  .btn:hover:not(:disabled),
+  .btn-icon:hover,
+  .btn-voice:hover,
+  .mode-btn:hover,
+  .deck-item:hover,
+  .agent-transcript .tool-toggle:hover,
+  .slide-export-option:hover,
+  .history-item:hover {
+    background: inherit;
+    color: inherit;
+    border-color: inherit;
+  }
+}
+
+/* Press / keyboard-focus feedback for all the primary interactive controls.
+   Applies on every device; harmless on desktop (additive). */
+.nav-btn:active:not(:disabled),
+.btn:active:not(:disabled),
+.btn-icon:active,
+.btn-voice:active,
+.mode-btn:active,
+.btn-send:active:not(:disabled),
+.mobile-tab:active {
+  transform: translateY(0.5px);
+  filter: brightness(1.15);
+}
+
+.nav-btn:focus-visible,
+.btn:focus-visible,
+.btn-icon:focus-visible,
+.btn-voice:focus-visible,
+.mode-btn:focus-visible,
+.btn-send:focus-visible,
+.tool-toggle:focus-visible,
+.mobile-tab:focus-visible,
+.instruction-input:focus-visible,
+.api-key-input:focus-visible,
+.source-textarea:focus-visible {
+  outline: 2px solid var(--accent-hi);
+  outline-offset: 1px;
+}
+
+/* ════ Breakpoint: phones / narrow tablets ════ */
+@media (max-width: 899px) {
+
+  /* Allow the page to scroll if anything overflows; the desktop locked both
+     html and body to overflow:hidden which clips panels on mobile. */
+  html, body {
+    overflow: visible;
+    overflow-x: hidden;
+  }
+
+  /* ── Single-column shell: one panel visible at a time ── */
+  .panels {
+    display: block;
+    position: relative;
+    min-height: 0;
+    /* Leave room for the fixed bottom tab bar (+ safe area). */
+    padding-bottom: calc(56px + env(safe-area-inset-bottom));
+  }
+
+  /* Each panel fills the area between the topbar and the tab bar and scrolls
+     on its own. Hidden by default; the active one (set by mobileNav.js) shows. */
+  .deck-list,
+  .viewer,
+  .edit-panel {
+    display: none;
+    border: none;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .deck-list { overflow-y: auto; -webkit-overflow-scrolling: touch; }
+
+  .panels[data-mobile-panel="deck-list"] .deck-list { display: flex; }
+  .panels[data-mobile-panel="viewer"]    .viewer    { display: flex; }
+  .panels[data-mobile-panel="edit-panel"] .edit-panel { display: flex; }
+
+  /* Independent, contained scrolling for the inner scroll regions. */
+  .deck-items,
+  .history-list,
+  .agent-transcript {
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* ── Inputs ≥16px to stop iOS auto-zoom on focus ── */
+  .instruction-input,
+  .agent-input,
+  .api-key-input,
+  .upload-dialog-select,
+  .source-textarea {
+    font-size: 16px;
+  }
+  .instruction-input::placeholder { font-size: 16px; }
+
+  /* ── Tap targets ≥44×44 ── */
+  .nav-btn,
+  .nav-btn-icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .nav-btn-icon { width: auto; }
+  .btn {
+    min-height: 44px;
+    padding: 0 16px;
+  }
+  .btn-icon {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .mode-btn { min-height: 44px; padding: 0 16px; }
+  .mode-toggle { padding: 3px; }
+  .tool-toggle { min-width: 44px; min-height: 44px; }
+  .btn-voice { width: 44px; height: 44px; }
+  .btn-send, .btn-cancel { min-height: 44px; }
+
+  /* ── Topbar: keep it compact, let the deck name ellipsize ── */
+  .topbar { padding-left: calc(14px + env(safe-area-inset-left)); padding-right: calc(14px + env(safe-area-inset-right)); }
+  .topbar-actions { gap: 6px; }
+
+  /* ── Viewer: fit-to-width stage ── */
+  .slide-stage {
+    padding: 10px;
+    /* Let vertical scroll/pan through while we handle horizontal swipe in JS. */
+    touch-action: pan-y;
+  }
+  .slide-wrapper {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  /* ── Slide-nav: prev / page / next stay; secondary controls collapse into a
+        bottom sheet toggled by the ••• button. ── */
+  .slide-nav {
+    gap: 8px;
+    padding: 0 10px;
+    position: relative;
+  }
+  .slide-nav-more {
+    display: flex;
+    margin-left: auto;
+    font-size: 16px;
+    letter-spacing: 1px;
+  }
+  /* Collapsed by default; .open (set by mobileNav.js) reveals it as a sheet that
+     floats just above the bottom tab bar. */
+  .slide-nav-secondary {
+    display: none;
+  }
+  .slide-nav-secondary.open {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    position: fixed;
+    left: 8px;
+    right: 8px;
+    bottom: calc(56px + env(safe-area-inset-bottom) + 8px);
+    padding: 12px;
+    background: var(--bg2);
+    border: 1px solid var(--rule-hi);
+    border-radius: 10px;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.55);
+    z-index: 120;
+  }
+  .slide-nav-secondary.open .slide-crud {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
+  }
+  /* The export popup must open upward inside the sheet so it isn't clipped. */
+  .slide-nav-secondary.open .slide-export-popup {
+    top: auto;
+    bottom: calc(100% + 6px);
+    right: auto;
+    left: 0;
+  }
+
+  /* ── Bottom tab bar ── */
+  .mobile-tabbar {
+    display: flex;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 150;
+    background: var(--bg1);
+    border-top: 1px solid var(--rule);
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+  .mobile-tab {
+    flex: 1;
+    min-height: 56px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: color 0.12s;
+  }
+  .mobile-tab-icon { font-size: 17px; line-height: 1; }
+  .mobile-tab-label {
+    font-size: 9.5px;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .mobile-tab.active { color: var(--accent); }
+
+  /* ── Dialogs: fit narrow screens ── */
+  .upload-dialog-inner { width: min(92vw, 360px); }
+  .source-drawer { width: 94vw; max-width: 94vw; }
+  .source-textarea { min-height: 240px; }
+
+  /* The agent composer is the bottom UI inside the edit panel; pad it past the
+     home-indicator safe area so the send button isn't under the gesture bar.
+     When the soft keyboard is open, agent.js sets --fgs-kb to the keyboard
+     height and we lift the edit panel by that amount so the composer stays
+     visible above the keyboard. --fgs-kb defaults to 0 (no shift). */
+  :root { --fgs-kb: 0px; }
+
+  .agent-composer { padding-bottom: calc(14px + env(safe-area-inset-bottom)); }
+
+  /* Shrink the edit panel from the bottom by the keyboard height so its
+     bottom-anchored composer rises above the keyboard. The transcript (flex:1)
+     absorbs the height change and scroll-anchors to the latest output. */
+  .panels[data-mobile-panel="edit-panel"] .edit-panel {
+    height: calc(100% - var(--fgs-kb));
+    transition: height 0.18s ease;
+  }
+}
+

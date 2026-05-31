@@ -97,6 +97,37 @@ const Viewer = (() => {
   btnPrev.addEventListener('click', () => goTo(currentSlideIndex - 1));
   btnNext.addEventListener('click', () => goTo(currentSlideIndex + 1));
 
+  // ── Touch swipe to change slides (mobile) ──
+  // Two sources feed slideSwipe():
+  //   1. pointer gestures on the .slide-stage padding/bezel (handled here), and
+  //   2. `fgs-swipe` postMessages forwarded by the in-iframe selection script
+  //      for swipes that land on the slide itself (the iframe captures those, so
+  //      the parent never sees them directly).
+  // Both modes (client render + selfhost /api/render) forward fgs-swipe, so this
+  // works the same in either build.
+  function slideSwipe(dir) {
+    goTo(currentSlideIndex + (dir < 0 ? 1 : -1));
+  }
+
+  const stage = document.querySelector('.slide-stage');
+  if (stage) {
+    let sx = 0, sy = 0, tracking = false;
+    const SWIPE_MIN = 48;     // px horizontal travel to trigger
+    const SWIPE_RATIO = 1.4;  // must be this much more horizontal than vertical
+    stage.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'mouse') return; // desktop uses arrows/buttons
+      tracking = true; sx = e.clientX; sy = e.clientY;
+    });
+    stage.addEventListener('pointerup', e => {
+      if (!tracking) return;
+      tracking = false;
+      const dx = e.clientX - sx, dy = e.clientY - sy;
+      if (Math.abs(dx) < SWIPE_MIN || Math.abs(dx) < Math.abs(dy) * SWIPE_RATIO) return;
+      slideSwipe(dx);
+    });
+    stage.addEventListener('pointercancel', () => { tracking = false; });
+  }
+
   document.addEventListener('keydown', e => {
     if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
     if (e.key === 'ArrowLeft') goTo(currentSlideIndex - 1);
@@ -117,6 +148,10 @@ const Viewer = (() => {
     }
     if (e.data.type === 'element-delete') {
       handleElementDelete(e.data);
+    }
+    if (e.data.type === 'fgs-swipe') {
+      // dir < 0 → swipe left → next slide.
+      slideSwipe(e.data.dir);
     }
   });
 

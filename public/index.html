@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <!-- Build target: "serverless" routes render/edit/deck/export through the client
        modules (PWA on Vercel/Netlify); anything else (default) is "selfhost" and
        uses the Express /api routes exactly as before. Read by public/clientMode.js. -->
@@ -60,25 +60,32 @@
         <button class="nav-btn" id="btn-prev" disabled>←</button>
         <span class="nav-page" id="nav-page">—</span>
         <button class="nav-btn" id="btn-next" disabled>→</button>
-        <button class="nav-btn" id="btn-slide-source" disabled title="View / edit raw slide markdown">&lt;/&gt; Source</button>
-        <div class="slide-crud">
-          <button class="nav-btn nav-btn-icon" id="btn-slide-add" disabled title="Add slide (after current)">+</button>
-          <button class="nav-btn nav-btn-icon" id="btn-slide-duplicate" disabled title="Duplicate current slide">⎘</button>
-          <button class="nav-btn nav-btn-icon" id="btn-slide-up" disabled title="Move slide up">↑</button>
-          <button class="nav-btn nav-btn-icon" id="btn-slide-down" disabled title="Move slide down">↓</button>
-          <button class="nav-btn nav-btn-icon nav-btn-danger" id="btn-slide-delete" disabled title="Delete current slide">✕</button>
-        </div>
-        <div class="slide-export-menu">
-          <button class="nav-btn" id="btn-slide-export" disabled title="Export this slide">↓ Slide</button>
-          <div class="slide-export-popup" id="slide-export-popup" style="display:none;">
-            <button class="slide-export-option" data-format="pdf">PDF</button>
-            <button class="slide-export-option" data-format="pptx">PPTX (exact)</button>
-            <button class="slide-export-option" data-format="pptx-editable">PPTX (editable, beta)</button>
-            <button class="slide-export-option" data-format="png">PNG</button>
-            <button class="slide-export-option" data-format="jpg">JPG</button>
-            <button class="slide-export-option" data-format="html">HTML</button>
+        <!-- Secondary controls (Source / CRUD / Export). On desktop they sit
+             inline; below the mobile breakpoint they collapse into a bottom
+             sheet toggled by #btn-slide-more (•••). -->
+        <div class="slide-nav-secondary" id="slide-nav-secondary">
+          <button class="nav-btn" id="btn-slide-source" disabled title="View / edit raw slide markdown">&lt;/&gt; Source</button>
+          <div class="slide-crud">
+            <button class="nav-btn nav-btn-icon" id="btn-slide-add" disabled title="Add slide (after current)">+</button>
+            <button class="nav-btn nav-btn-icon" id="btn-slide-duplicate" disabled title="Duplicate current slide">⎘</button>
+            <button class="nav-btn nav-btn-icon" id="btn-slide-up" disabled title="Move slide up">↑</button>
+            <button class="nav-btn nav-btn-icon" id="btn-slide-down" disabled title="Move slide down">↓</button>
+            <button class="nav-btn nav-btn-icon nav-btn-danger" id="btn-slide-delete" disabled title="Delete current slide">✕</button>
+          </div>
+          <div class="slide-export-menu">
+            <button class="nav-btn" id="btn-slide-export" disabled title="Export this slide">↓ Slide</button>
+            <div class="slide-export-popup" id="slide-export-popup" style="display:none;">
+              <button class="slide-export-option" data-format="pdf">PDF</button>
+              <button class="slide-export-option" data-format="pptx">PPTX (exact)</button>
+              <button class="slide-export-option" data-format="pptx-editable">PPTX (editable, beta)</button>
+              <button class="slide-export-option" data-format="png">PNG</button>
+              <button class="slide-export-option" data-format="jpg">JPG</button>
+              <button class="slide-export-option" data-format="html">HTML</button>
+            </div>
           </div>
         </div>
+        <!-- Mobile-only overflow toggle: opens .slide-nav-secondary as a sheet. -->
+        <button class="nav-btn slide-nav-more" id="btn-slide-more" title="More slide actions">•••</button>
       </div>
       <div class="slide-stage">
         <div class="slide-wrapper" id="slide-wrapper">
@@ -170,6 +177,23 @@
     </aside>
 
   </div>
+
+  <!-- Mobile bottom tab bar: switches which single panel is visible below the
+       responsive breakpoint. Hidden on desktop (CSS). Wired by mobileNav.js. -->
+  <nav class="mobile-tabbar" id="mobile-tabbar" aria-label="Panels">
+    <button class="mobile-tab" data-panel="deck-list" type="button">
+      <span class="mobile-tab-icon">▦</span>
+      <span class="mobile-tab-label">Decks</span>
+    </button>
+    <button class="mobile-tab active" data-panel="viewer" type="button">
+      <span class="mobile-tab-icon">▤</span>
+      <span class="mobile-tab-label">Slide</span>
+    </button>
+    <button class="mobile-tab" data-panel="edit-panel" type="button">
+      <span class="mobile-tab-icon">✎</span>
+      <span class="mobile-tab-label">Edit</span>
+    </button>
+  </nav>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -289,6 +313,11 @@
 <script src="chat.js"></script>
 <script src="agent.js"></script>
 <script src="app.js"></script>
+
+<!-- Mobile UX layer: bottom-tab panel switching + slide-nav overflow sheet.
+     Only active below the responsive breakpoint (matchMedia-gated); a no-op on
+     desktop, so the 3-column grid is untouched above 899px. -->
+<script src="mobileNav.js"></script>
 
 <!-- PWA: register the service worker for offline app shell + add-to-home-screen. -->
 <script>

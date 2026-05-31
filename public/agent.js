@@ -261,7 +261,7 @@ const Agent = (() => {
     el.appendChild(textNode(text));
     transcriptEl.appendChild(el);
     lastAssistantBubble = null;
-    scrollToEnd();
+    forceScrollToEnd();
   }
 
   function appendAssistant(text) {
@@ -378,7 +378,20 @@ const Agent = (() => {
     return document.createTextNode(s);
   }
 
+  // Scroll-anchoring: only auto-stick to the bottom when the user is already
+  // near it. If they've scrolled up to read earlier output, streaming updates
+  // won't yank them back down.
+  const STICK_THRESHOLD = 48; // px from bottom that still counts as "at bottom"
+  function nearBottom() {
+    const slack = transcriptEl.scrollHeight - transcriptEl.scrollTop - transcriptEl.clientHeight;
+    return slack <= STICK_THRESHOLD;
+  }
   function scrollToEnd() {
+    if (nearBottom()) transcriptEl.scrollTop = transcriptEl.scrollHeight;
+  }
+  // Force scroll regardless of position — used when the user sends a message
+  // (they expect to see their own input and the incoming response).
+  function forceScrollToEnd() {
     transcriptEl.scrollTop = transcriptEl.scrollHeight;
   }
 
@@ -462,6 +475,39 @@ const Agent = (() => {
 
   initVoice();
   checkSendable();
+
+  // ── Keyboard-aware composer (mobile) ──
+  // iOS Safari shrinks window.visualViewport when the soft keyboard opens but
+  // does NOT reflow fixed/bottom UI, so the composer can hide behind the
+  // keyboard. We expose the keyboard height as the CSS var --fgs-kb on <html>;
+  // the mobile @media block lifts the composer (and hides the tab bar) by that
+  // amount. Gated to a coarse pointer + the mobile breakpoint so desktop and
+  // trackpad browsers are untouched. Shared by both composers in the edit panel.
+  (function initKeyboardAwareComposer() {
+    const vv = window.visualViewport;
+    if (!vv) return;
+    const root = document.documentElement;
+    const isMobile = () => window.matchMedia('(max-width: 899px)').matches;
+
+    function update() {
+      // Keyboard height ≈ how much the visual viewport is shorter than the
+      // layout viewport from the bottom. Clamp to >=0 and ignore tiny values
+      // (toolbar jitter) so we don't shift on every scroll.
+      const kb = isMobile()
+        ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop)
+        : 0;
+      root.style.setProperty('--fgs-kb', (kb > 80 ? kb : 0) + 'px');
+      // When the keyboard opens while the agent transcript is in view, keep the
+      // latest output visible above it.
+      if (kb > 80 && nearBottom()) forceScrollToEnd();
+    }
+
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    // Reset when focus leaves any composer (keyboard dismissed).
+    document.addEventListener('focusout', () => setTimeout(update, 50));
+    update();
+  })();
 
   return { reset, setMode };
 })();

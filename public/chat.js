@@ -266,5 +266,18 @@ const Chat = (() => {
   });
 
   initVoice();
+
+  // ── Keyboard-aware (mobile) ──
+  // The shared visualViewport handler in agent.js shrinks the edit panel by the
+  // keyboard height so this composer stays visible. As a belt-and-braces, scroll
+  // the quick-edit input into view when it's focused on a touch keyboard, after
+  // the viewport has settled.
+  input.addEventListener('focus', () => {
+    if (!window.matchMedia('(max-width: 899px)').matches) return;
+    setTimeout(() => {
+      try { input.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (_) {}
+    }, 250);
+  });
+
   return { reset: resetSelection };
 })();
