@@ -1,6 +1,4 @@
 node_modules/
+.claude/worktrees/
 .env
-server.log
-*.log
-scripts/test-*.js
-.DS_Store
+dist/
