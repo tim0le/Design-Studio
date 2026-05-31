@@ -1,0 +1,13 @@
+# Self-host-only code never executed on the serverless build.
+node_modules
+.env
+*.log
+
+# Express self-host routers / libs that need a subprocess, the Marp CLI, or a
+# writable workspace — unused by the static + /api serverless deploy.
+routes/agent.js
+routes/watch.js
+routes/export.js
+
+# Local-LLM proxy notes (self-host only).
+README_LOCAL_LLM.md
