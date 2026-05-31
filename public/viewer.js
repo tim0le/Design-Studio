@@ -1,8 +1,16 @@
 /* ── Viewer: slide rendering + selection + drag ── */
 const Viewer = (() => {
+  // Serverless/PWA build flag. In client mode we render slides in-browser via
+  // MarpRender (iframe srcdoc) and source frontmatter/slides from DeckStore,
+  // instead of hitting the server's /api/render + /api/decks/:id/source routes.
+  const CLIENT = !!window.FGS_CLIENT_RENDER;
+
   let currentDeckId = null;
   let currentSlideIndex = 0;
   let totalSlides = 0;
+  // In client mode, the parsed deck (frontmatter + slides) for the current deck.
+  // Read from DeckStore on loadDeck() and after any CRUD/edit (via invalidate()).
+  let clientDeck = null; // { frontmatter, slides } or null
 
   const iframe = document.getElementById('slide-iframe');
   const loading = document.getElementById('slide-loading');
@@ -21,7 +29,31 @@ const Viewer = (() => {
     btnNext.disabled = currentSlideIndex >= totalSlides - 1;
   }
 
+  // ── Client-render: build the iframe srcdoc in-browser ──
+  // Mirrors lib/marp.js renderSlide(): render the single-slide doc, then splice
+  // the selection layer (FGS_SELECTION_HTML) into the FGS_SELECTION_INJECT
+  // marker MarpRender leaves before </body>, so the iframe emits the same
+  // element-selected / text-edited / drag-position / element-delete messages.
+  async function loadSlideClient(slideIndex) {
+    showLoading(true);
+    iframe.style.display = 'block';
+    if (placeholder) placeholder.style.display = 'none';
+    try {
+      if (!clientDeck) clientDeck = await DeckStore.readDeck(currentDeckId);
+      const slideMd = clientDeck.slides[slideIndex] || '';
+      let doc = await MarpRender.renderToIframeSrcdoc(clientDeck.frontmatter, slideMd);
+      const selectionHtml = window.FGS_SELECTION_HTML || '';
+      doc = doc.replace('<!-- FGS_SELECTION_INJECT -->', selectionHtml);
+      iframe.onload = () => showLoading(false);
+      iframe.srcdoc = doc;
+    } catch (e) {
+      showLoading(false);
+      showToast('Failed to render slide: ' + e.message, true);
+    }
+  }
+
   async function loadSlide(deckId, slideIndex) {
+    if (CLIENT) return loadSlideClient(slideIndex);
     showLoading(true);
     const url = `/api/render/${encodeURIComponent(deckId)}/slide/${slideIndex}`;
     iframe.style.display = 'block';
@@ -34,12 +66,21 @@ const Viewer = (() => {
   async function loadDeck(deckId, startIndex = 0) {
     currentDeckId = deckId;
     currentSlideIndex = startIndex;
-    const res = await fetch(`/api/decks/${encodeURIComponent(deckId)}/source`);
-    const data = await res.json();
-    totalSlides = data.slides ? data.slides.length : 0;
+    if (CLIENT) {
+      clientDeck = await DeckStore.readDeck(deckId);
+      totalSlides = clientDeck.slides ? clientDeck.slides.length : 0;
+    } else {
+      const res = await fetch(`/api/decks/${encodeURIComponent(deckId)}/source`);
+      const data = await res.json();
+      totalSlides = data.slides ? data.slides.length : 0;
+    }
     updateNav();
     await loadSlide(deckId, currentSlideIndex);
   }
+
+  // Drop the cached parsed deck so the next render re-reads from DeckStore.
+  // Called by app.js (and the local edit apply) after any write in client mode.
+  function invalidate() { clientDeck = null; }
 
   async function goTo(index) {
     if (!currentDeckId || index < 0 || index >= totalSlides) return;
@@ -104,7 +145,9 @@ const Viewer = (() => {
       };
     } catch (_) {}
   }
-  openWatchStream();
+  // No filesystem to watch on serverless — client renders are always current
+  // (we re-read DeckStore after every write). Only open the SSE on selfhost.
+  if (!CLIENT) openWatchStream();
 
   // Direct-manipulation handlers (drag / inline edit / delete) all share the
   // same shape: POST the change to the server, on success ALWAYS reload the
@@ -144,7 +187,44 @@ const Viewer = (() => {
     }
   }
 
+  // ── Client-mode direct manipulation ──
+  // Inline double-click text edits port cleanly: locate the element's outerHTML
+  // in the slide markdown and swap its inner text (FGS_Locator.replaceByOuterHtml
+  // preserves the tag + attributes), then persist via DeckStore and re-render.
+  // An empty edit deletes the element's text — mirror the server's "removed".
+  async function handleTextEditedClient(data) {
+    if (!currentDeckId) return;
+    try {
+      if (!clientDeck) clientDeck = await DeckStore.readDeck(currentDeckId);
+      const slideMd = clientDeck.slides[currentSlideIndex] || '';
+      const newText = (data.newText || '').trim();
+      const updated = FGS_Locator.replaceByOuterHtml(slideMd, data.elementHtml, newText);
+      if (updated === null) {
+        showToast(FGS_Locator.NOT_FOUND_MESSAGE, true);
+        refreshCurrent();
+        return;
+      }
+      await DeckStore.updateSlide(currentDeckId, currentSlideIndex, updated);
+      invalidate();
+      if (!newText) showToast('✓ Element removed (empty edit)');
+      refreshCurrent();
+    } catch (e) {
+      showToast(e.message, true);
+      refreshCurrent();
+    }
+  }
+
+  // Drag-reposition and element-delete depend on the server's elementSource
+  // UUID-tagging (lib/elementSource.js), which is not ported to the client.
+  // On serverless, surface a clear message and refresh to wipe the visual state
+  // instead of POSTing to a route that doesn't exist.
+  function unsupportedClientOp() {
+    showToast('Drag and delete are self-host only. Use the Edit panel to change this element.', true);
+    refreshCurrent();
+  }
+
   async function handleDragPosition(data) {
+    if (CLIENT) return unsupportedClientOp();
     return postAndRefresh('/api/move', {
       deckId: currentDeckId,
       slideIndex: currentSlideIndex,
@@ -161,6 +241,7 @@ const Viewer = (() => {
   }
 
   async function handleTextEdited(data) {
+    if (CLIENT) return handleTextEditedClient(data);
     const result = await postAndRefresh('/api/text', {
       deckId: currentDeckId,
       slideIndex: currentSlideIndex,
@@ -174,6 +255,7 @@ const Viewer = (() => {
   }
 
   async function handleElementDelete(data) {
+    if (CLIENT) return unsupportedClientOp();
     return postAndRefresh('/api/delete', {
       deckId: currentDeckId,
       slideIndex: currentSlideIndex,
@@ -185,7 +267,7 @@ const Viewer = (() => {
   }
 
   return {
-    loadDeck, refreshCurrent, goTo,
+    loadDeck, refreshCurrent, goTo, invalidate,
     get current() { return { deckId: currentDeckId, slideIndex: currentSlideIndex }; }
   };
 })();

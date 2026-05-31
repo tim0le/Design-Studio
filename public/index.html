@@ -3,6 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- Build target: "serverless" routes render/edit/deck/export through the client
+       modules (PWA on Vercel/Netlify); anything else (default) is "selfhost" and
+       uses the Express /api routes exactly as before. Read by public/clientMode.js. -->
+  <meta name="fgs-target" content="selfhost">
   <title>Furgoson Studio</title>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -262,6 +266,24 @@
     </div>
   </div>
 </div>
+
+<!-- Runtime build-target flag (window.FGS_CLIENT_RENDER). Must load first so the
+     app scripts below can branch on it during init. -->
+<script src="clientMode.js"></script>
+
+<!-- Serverless/PWA client modules. Harmless on selfhost (they only attach window
+     globals; nothing runs until app.js/viewer.js call them in client mode). The
+     vendor bundles must precede the modules that consume them:
+       marp-core.bundle.js  -> MarpRender
+       html2canvas + jspdf  -> ClientExport -->
+<script src="vendor/marp-core.bundle.js"></script>
+<script src="vendor/html2canvas.min.js"></script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script src="render/marp-render.js"></script>
+<script src="render/selection.js"></script>
+<script src="store/deckStore.js"></script>
+<script src="export/clientExport.js"></script>
+<script src="edit/locator.js"></script>
 
 <script src="viewer.js"></script>
 <script src="chat.js"></script>
