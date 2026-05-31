@@ -5,7 +5,8 @@
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "test:deckstore": "node test/deckStore.test.js"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.150",
@@ -14,5 +15,8 @@
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2"
+  },
+  "devDependencies": {
+    "fake-indexeddb": "^6.2.5"
   }
 }
