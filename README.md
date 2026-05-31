@@ -29,6 +29,62 @@ Open http://localhost:3000. On first launch with no decks dir configured, the st
 
 To point the studio at your own deck content, you have two options (see [Studio layout](#studio-layout) below).
 
+## Two build targets
+
+The studio ships in one codebase with two deploy modes, selected by the
+`STUDIO_TARGET` environment variable (default `selfhost`):
+
+| Target | Where | AI editing | Agent | Live reload | PPTX export |
+|--------|-------|-----------|-------|-------------|-------------|
+| `selfhost` (default) | your PC / a box you control (`npm start`) | quick-edit + agent | ✅ | ✅ | ✅ |
+| `serverless` | Vercel (static `public/` + `/api` functions) | direct-API `/api/ai-edit` only | ❌ | ❌ | ❌ (PNG/JPG/PDF only) |
+
+On the **serverless** build the Claude Code agent path, live-reload watch, and
+PPTX / PPTX-editable exports are **unavailable** — they need a subprocess, a
+writable workspace, and the Marp CLI / LibreOffice. Use the **self-host** build
+when you need any of those.
+
+## Deploying as a mobile PWA (Vercel)
+
+This gets you a permanent `https://<project>.vercel.app` URL you can open on an
+iPhone and install to the home screen — no tunnel, no PC kept running.
+
+1. **Push the repo to GitHub** (any account):
+   ```bash
+   git push origin main
+   ```
+2. **Import into Vercel** — at https://vercel.com/new, pick the GitHub repo.
+   Vercel reads `vercel.json` automatically: static files are served from
+   `public/`, any `api/*.js` file becomes a Node serverless function (300s
+   `maxDuration` via fluid compute), and all other routes fall back to the
+   SPA shell (`public/index.html`).
+3. **Set environment variables** (Project → Settings → Environment Variables):
+   - `ANTHROPIC_API_KEY` — your `sk-ant-…` key (used server-side by `/api/ai-edit`).
+   - `STUDIO_TARGET` — `serverless`.
+4. **Deploy.** Vercel builds and gives you a `*.vercel.app` URL.
+5. **Install on iPhone** — open the `*.vercel.app` URL in Safari, tap **Share →
+   Add to Home Screen**. It launches full-screen like a native app.
+
+> On the serverless build, AI editing runs through the direct-API `/api/ai-edit`
+> function (your key stays on the server). The agent, live-reload, and PPTX
+> exports are self-host-only — see below.
+
+## Self-hosting (full build)
+
+For the agent path, live reload, and PPTX export, run the Express app yourself:
+
+```bash
+npm install
+STUDIO_TARGET=selfhost npm start   # selfhost is also the default
+```
+
+Requires the **`marp` CLI** (`npm install -g @marp-team/marp-cli`) and, for
+editable-PPTX export, **LibreOffice**. See [Prerequisites](#prerequisites).
+This is also the dev environment for working on the serverless build.
+
+See [`docs/MOBILE-PWA-SERVERLESS-PLAN.md`](docs/MOBILE-PWA-SERVERLESS-PLAN.md)
+for the full architecture and rationale behind the two targets.
+
 ## Prerequisites
 
 | Tool | Why | Install |
