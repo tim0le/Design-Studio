@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Maskable variant: artwork kept within the ~80% safe zone so platform
+       masks never clip the glyph; background bleeds to the full edge. -->
+  <rect width="512" height="512" fill="#0d0c0b"/>
+  <rect x="92.2" y="92.2" width="327.6" height="327.6" rx="72.1" fill="#b85a3e"/>
+  <rect x="256" y="154.7" width="139.1" height="139.1" rx="0" fill="#f5f3f0"
+        transform="rotate(45 256 256)"/>
+</svg>
