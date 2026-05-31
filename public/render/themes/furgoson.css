@@ -1,0 +1,95 @@
+/* @theme furgoson
+ *
+ * FALLBACK Furgoson theme.
+ *
+ * The canonical Furgoson theme lives in the sibling `furgoson-studio` repo,
+ * which is ABSENT in this checkout. This file is a minimal, self-contained
+ * stand-in that carries the brand tokens so client-side Marp rendering works
+ * without the sibling repo. When the real theme is available, register it
+ * instead (its `@theme furgoson` header takes precedence at registration time).
+ *
+ * Brand tokens: bg #100e0c, text #f5f3f0, accent #b85a3e, Inter, 1280x720.
+ */
+
+@import 'default';
+
+:root {
+  --fgs-bg:     #100e0c;
+  --fgs-fg:     #f5f3f0;
+  --fgs-muted:  #a59f97;
+  --fgs-accent: #b85a3e;
+  --fgs-rule:   rgba(245, 243, 240, 0.12);
+}
+
+section {
+  width:  1280px;
+  height: 720px;
+  padding: 80px 100px;
+  background: var(--fgs-bg);
+  color: var(--fgs-fg);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  font-size: 22px;
+  line-height: 1.5;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+h1 {
+  font-size: 56px;
+  font-weight: 700;
+  margin: 0 0 24px;
+  letter-spacing: -0.02em;
+  color: var(--fgs-fg);
+}
+
+h2 {
+  font-size: 40px;
+  font-weight: 600;
+  margin: 0 0 20px;
+  letter-spacing: -0.01em;
+}
+
+h3 {
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0 0 16px;
+}
+
+p, li {
+  font-size: 22px;
+  color: var(--fgs-fg);
+}
+
+a {
+  color: var(--fgs-accent);
+}
+
+strong {
+  color: var(--fgs-accent);
+  font-weight: 600;
+}
+
+hr {
+  border: none;
+  border-top: 1px solid var(--fgs-rule);
+  margin: 24px 0;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--fgs-accent);
+  margin-bottom: 16px;
+}
+
+.subtitle {
+  font-size: 26px;
+  color: var(--fgs-muted);
+}
+
+section.cover {
+  justify-content: flex-end;
+}
