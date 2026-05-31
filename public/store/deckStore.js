@@ -363,7 +363,10 @@
   async function moveSlide(id, index, direction) {
     const { frontmatter, slides } = await readDeck(id);
     const r = applyMoveSlide(frontmatter, slides, index, direction);
-    await writeDeck(id, r.markdown);
+    // Mirror lib/deck.js: a boundary noop leaves the stored deck byte-for-byte
+    // untouched. Re-writing here would normalize separators/whitespace via
+    // assembleDeck even though nothing moved.
+    if (!r.noop) await writeDeck(id, r.markdown);
     return { movedTo: r.movedTo, slideCount: r.slideCount, noop: !!r.noop };
   }
 

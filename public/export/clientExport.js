@@ -118,7 +118,20 @@
   // The element may be displayed scaled (fit-to-width on mobile); we compute the
   // scale that maps its current rendered width back to the native 1280 canvas so
   // html2canvas produces a full-resolution 1280x720 bitmap regardless of zoom.
-  function renderToCanvas(slideEl) {
+  // Resolve the slide's own background so opaque formats (JPEG) don't flatten
+  // transparent areas to black. Falls back to the deck's near-black surface.
+  function slideBackground(el) {
+    try {
+      var view = (el.ownerDocument && el.ownerDocument.defaultView) || global;
+      var bg = view.getComputedStyle(el).backgroundColor;
+      if (bg && bg !== 'rgba(0, 0, 0, 0)' && bg !== 'transparent') return bg;
+    } catch (e) { /* ignore */ }
+    return '#100e0c';
+  }
+
+  // bgColor: pass null to preserve transparency (PNG); pass an opaque color for
+  // JPEG/PDF which cannot represent alpha.
+  function renderToCanvas(slideEl, bgColor) {
     var h2c = requireHtml2Canvas();
     var el = resolveSlideElement(slideEl);
 
@@ -134,7 +147,7 @@
       windowWidth: SLIDE_W / scale,
       windowHeight: SLIDE_H / scale,
       scale: scale,
-      backgroundColor: null,
+      backgroundColor: bgColor === undefined ? null : bgColor,
       useCORS: true,
       logging: false
     });
@@ -179,7 +192,10 @@
   // ── PNG / JPG ─────────────────────────────────────────────────────────────
 
   function exportRaster(slideEl, filename, mime, quality, defaultName) {
-    return renderToCanvas(slideEl)
+    // JPEG has no alpha channel; render onto an opaque background so transparent
+    // slide areas don't flatten to black. PNG keeps transparency (bg = null).
+    var bg = mime === 'image/jpeg' ? slideBackground(resolveSlideElement(slideEl)) : null;
+    return renderToCanvas(slideEl, bg)
       .then(function (canvas) {
         return canvasToBlob(canvas, mime, quality);
       })
@@ -219,7 +235,9 @@
     var chain = Promise.resolve();
     slides.forEach(function (slideEl, i) {
       chain = chain.then(function () {
-        return renderToCanvas(slideEl).then(function (canvas) {
+        // Opaque background: PDF pages default to white, which would show
+        // through transparent areas of a dark slide.
+        return renderToCanvas(slideEl, slideBackground(resolveSlideElement(slideEl))).then(function (canvas) {
           var imgData = canvas.toDataURL('image/png');
           if (i > 0) pdf.addPage([SLIDE_W, SLIDE_H], 'landscape');
           pdf.addImage(imgData, 'PNG', 0, 0, SLIDE_W, SLIDE_H);

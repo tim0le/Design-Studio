@@ -64,9 +64,18 @@ self.addEventListener('fetch', (event) => {
   // Don't touch cross-origin requests (e.g. Google Fonts) — pass through.
   if (url.origin !== self.location.origin) return;
 
-  // API: network-first, no caching.
+  // API: network-first, no caching. /api/* is never cached, so on a network
+  // failure return a clean 503 rather than respondWith(undefined) (which throws
+  // a TypeError and surfaces a confusing error to the caller).
   if (url.pathname.startsWith('/api/')) {
-    event.respondWith(fetch(request).catch(() => caches.match(request)));
+    event.respondWith(
+      fetch(request).catch(() =>
+        new Response(
+          JSON.stringify({ error: 'Offline — this action needs a network connection.' }),
+          { status: 503, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+    );
     return;
   }
 
